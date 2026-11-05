@@ -41,6 +41,8 @@
     discard,
     async download(name) {
       if (!handle || writable) throw new Error('La salida no está terminada.');
+      // Let the browser paint the preparation indicator before handling the file.
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       download(await handle.getFile(), name);
     },
     layout(name, channels) {

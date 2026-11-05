@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "AtmosWeb",
   "resources": {
-    "hash": "sha256-dbplgYDt2iXkApsjKNd6dS5zRmCNzsHkAiVblbj0twU=",
+    "hash": "sha256-Wawc18/edPf0OgITHe5NuNpko6torVWFys65CQ++yVM=",
     "jsModuleNative": {
       "dotnet.native.8.0.15.bk73zsvtf0.js": "sha256-D8fCTbf5OEW7Cd0A9uX086oMaFMeGwlaRQ11BTE7ReU="
     },
@@ -9,10 +9,10 @@
       "dotnet.runtime.8.0.15.jnjzvip3k5.js": "sha256-FDzrAx2UjG21VHaNZAes6hQGG2S/oq5S2VaFjEBfPgM="
     },
     "wasmNative": {
-      "dotnet.native.wasm": "sha256-CQ/h2SlXr7dWi9X9Lxhb1aVjAnBz7xAMtXv4GlkCj6w="
+      "dotnet.native.wasm": "sha256-zysN9cHPC561D1zSua4AoK/cdt/P3RGMQWncV1p648M="
     },
     "assembly": {
-      "AtmosWeb.wasm": "sha256-ewhHDbClZSlGJ0L2tWLIJfLiGQIAWg6N4YPpdvvt3nE=",
+      "AtmosWeb.wasm": "sha256-Vta5pBkPkUx7gZ2vPEE4g4D0NOq/c6Va6a4/3o48WnE=",
       "Cavern.Format.wasm": "sha256-ZO/XC6OEZG6UgNZ2Tff0iq6h8KlHjTEm1+Od08P7n0M=",
       "Cavern.wasm": "sha256-Vx4Xqi8AgrZ79hDYVrkwl8q+jhvsq6SFxllNirhfoTA=",
       "Microsoft.AspNetCore.Components.wasm": "sha256-W5z5EwSBCPvaZl6ib6yJ5Sl0mPvTzA6mGJCnxKWpw/Y=",
