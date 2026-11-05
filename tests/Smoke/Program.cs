@@ -25,6 +25,8 @@ try {
     await Converter.Render(new MemoryStream(new byte[256]), _ => { writes++; return Task.CompletedTask; }, _ => {}, CancellationToken.None);
     throw new Exception("Malformed input accepted");
 } catch (Cavern.Format.Exceptions.UnsupportedFormatException) { Check(writes == 0, "malformed source rejected before output"); }
+PannerRegression.Run(Check);
+MetadataRegression.Run(Check);
 if (args.Length > 0) {
     using var input = File.OpenRead(args[0]);
     using var output = File.Create(args.Length > 1 ? args[1] : "/tmp/atmos-smoke.wav");
