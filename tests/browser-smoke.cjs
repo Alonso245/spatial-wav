@@ -18,6 +18,7 @@ const assert = require('node:assert/strict');
       if (!r.url().startsWith('http://127.0.0.1:8080/') && !r.url().startsWith('blob:')) remote.push(r.url());
     });
     await page.goto('http://127.0.0.1:8080/');
+    await page.getByRole('dialog').getByRole('button', { name: /^Modo claro/ }).click();
     await page.getByText('Listo en tu dispositivo').waitFor({ timeout: 120000 });
     console.log('PASS: published WASM engine and OPFS initialized');
 
@@ -54,6 +55,7 @@ const assert = require('node:assert/strict');
     assert.equal(header.readUInt32LE(76) + 80, fs.statSync(destination).size);
     console.log(`PASS: browser converted JOC into ${fs.statSync(destination).size} bytes of WAV`);
     console.log(`CONVERSION: ${((Date.now() - conversionStarted) / 1000).toFixed(1)} seconds including save`);
+    await page.getByText('Mapa de canales', { exact: true }).click();
     const [layout] = await Promise.all([
       page.waitForEvent('download'),
       page.getByRole('button', { name: 'Descargar mapa de canales (JSON)' }).click()
@@ -63,8 +65,11 @@ const assert = require('node:assert/strict');
     const mapping = JSON.parse(fs.readFileSync(layoutPath, 'utf8'));
     assert.equal(mapping.channels.length, 16);
     assert.equal(mapping.channels[12].name, 'Ltm');
-    await page.getByRole('button', { name: 'Borrar salida local' }).click();
-    await page.getByRole('status').filter({ hasText: 'Salida local eliminada' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Convertir a WAV', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Nueva conversión' }).click();
+    await page.getByRole('button', { name: 'Convertir a WAV', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Convertir a WAV', exact: true }).isDisabled(), true);
+    assert.equal(await page.locator('input[type=file]').inputValue(), '');
     const entries = await page.evaluate(async () => {
       const names = [];
       for await (const [name] of (await navigator.storage.getDirectory()).entries()) names.push(name);

@@ -40,7 +40,7 @@ Las pruebas comprueban el encabezado WAV, límites RIFF y rechazo de datos invá
 
 Sube **el contenido** de `dist/wwwroot/` a un alojamiento HTTPS como GitHub Pages. No subas las muestras de audio. No hace falta un backend; servir los archivos de la web es distinto de ejecutar un servidor en la computadora de cada visitante. El `<base href="./">` permite servirla bajo la ruta del repositorio. El alojamiento debe entregar los archivos `.wasm` como `application/wasm`.
 
-La acción `Build and deploy Spatial WAV` compila, prueba y publica en GitHub Pages al subir cambios a `main`. En Settings → Pages del repositorio, la fuente debe estar configurada como **GitHub Actions**. Las solicitudes de cambios solo compilan; no publican. El mismo flujo puede ejecutarse manualmente desde Actions. Antes de distribuir una versión pública, revisa las condiciones de Cavern, incluidas las relativas a uso público. Ser gratuito y no mostrar anuncios no elimina las demás condiciones. Este repositorio no concede derechos sobre Dolby ni sobre los archivos del usuario.
+La web publicada en GitHub Pages se sirve desde la rama **gh-pages**, carpeta raíz, con `.nojekyll`. Para actualizarla hay que compilar y subir el contenido de `dist/wwwroot` a esa rama. El flujo de Actions del repositorio es una alternativa de compilación y despliegue; no es el mecanismo de la publicación actual. Antes de distribuir una versión pública, revisa las condiciones de Cavern, incluidas las relativas a uso público. Ser gratuito y no mostrar anuncios no elimina las demás condiciones. Este repositorio no concede derechos sobre Dolby ni sobre los archivos del usuario.
 
 ## Formato de salida y límites
 
@@ -52,10 +52,18 @@ La acción `Build and deploy Spatial WAV` compila, prueba y publica en GitHub Pa
 - Usa un navegador moderno y HTTPS. WebAssembly y OPFS son obligatorios; modos privados, cuotas de almacenamiento o restricciones móviles pueden impedir el proceso. No se ha validado compatibilidad general en móviles.
 - Mantén la pestaña abierta. La ejecución es cooperativa en el hilo del navegador y cede el control por bloques; aún no utiliza un Web Worker dedicado. El rendimiento puede ser inferior al de una aplicación nativa.
 - No se admite TrueHD, DRM ni descifrado. En MP4/M4A, Cavern selecciona su pista principal de audio; no hay selector de pistas.
-- La salida temporal se elimina al cambiar de archivo, iniciar otra conversión, pulsar **Borrar salida local** o, como mejor esfuerzo, al cerrar la pestaña. Si el navegador se cierra inesperadamente, puede quedar un temporal: borra los datos de este sitio desde la configuración del navegador.
+- La salida temporal se elimina al cambiar de archivo, iniciar otra conversión, pulsar **Nueva conversión** o, como mejor esfuerzo, al cerrar la pestaña. Si el navegador se cierra inesperadamente, puede quedar un temporal: borra los datos de este sitio desde la configuración del navegador.
 
 ## Privacidad
 
 El código de la aplicación no hace peticiones de subida ni envía el audio a una API. Solo se descargan los archivos estáticos del motor. La primera visita requiere conexión; todavía no hay caché de aplicación/PWA para iniciar sin conexión. No hay analítica ni recursos de terceros en la interfaz.
 
 Los resultados y límites de las pruebas realizadas se describen en [docs/VALIDATION.md](docs/VALIDATION.md).
+
+## Apariencia y descargas
+
+En la primera visita, una pantalla tenue permite elegir modo claro o noche antes de mostrar la interfaz. La preferencia se guarda localmente y el botón de apariencia permite cambiarla después. La pantalla inicial y el tema se aplican antes de arrancar WebAssembly para evitar un destello claro.
+
+La interfaz usa DM Sans y Newsreader, servidas desde `wwwroot/fonts` sin llamadas a proveedores externos. Los archivos proceden de los paquetes Fontsource Variable 5.3.0; sus licencias OFL acompañan a las fuentes.
+
+Al completar una conversión, la selección y el botón de convertir se sustituyen por un resultado con un check pequeño y una única descarga principal. El mapa de canales queda en un desplegable. Nueva conversión elimina el temporal y restablece la selección sin recargar. Al descargar se muestra un indicador de preparación y luego «Descarga iniciada»: no se afirma que el navegador haya terminado de guardar el archivo.

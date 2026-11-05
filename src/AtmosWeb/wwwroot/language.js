@@ -13,6 +13,7 @@
       : 'Convierte E-AC-3/JOC a WAV 9.1.6 en tu navegador. Procesamiento local, gratuito y sin subir tu audio.';
     document.querySelectorAll('[data-es][data-en]').forEach(element => { element.textContent = element.dataset[language]; });
     document.querySelectorAll('[data-language]').forEach(button => { button.setAttribute('aria-pressed', String(button.dataset.language === language)); });
+    dispatchEvent(new Event('spatial-language-change'));
   }
   window.spatialI18n = {
     get: () => language,

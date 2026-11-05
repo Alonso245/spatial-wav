@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, locale: 'es-PE' });
     await page.goto(process.env.ATMOS_TEST_URL || 'http://127.0.0.1:8080/', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('dialog').getByRole('button', { name: /^Modo claro/ }).click();
     await page.getByRole('heading', { name: 'Sonido que encuentra su lugar.' }).waitFor();
     console.log('PASS: initial page visible before engine readiness');
     await page.getByText('Listo en tu dispositivo').waitFor({ timeout: 120000 });
@@ -41,6 +42,7 @@ const assert = require('node:assert/strict');
     }
     const englishPage = await browser.newPage({ locale: 'en-US' });
     await englishPage.goto(process.env.ATMOS_TEST_URL || 'http://127.0.0.1:8080/');
+    await englishPage.getByRole('dialog').getByRole('button', { name: /^Light mode/ }).click();
     await englishPage.getByText('Ready on your device').waitFor({ timeout: 120000 });
     assert.equal(await englishPage.locator('html').getAttribute('lang'), 'en');
     console.log('PASS: ES/EN selector, translated validation, language persistence, automatic English detection, Spatial branding');
