@@ -38,7 +38,7 @@ const assert = require('node:assert/strict');
       if (errors.length) throw new Error(errors.join('\n'));
       if (Date.now() > deadline) throw new Error('Timed out: ' + status);
       if (Math.floor((deadline - Date.now()) / 2000) % 15 === 0)
-        console.log('PROGRESS:', await page.locator('progress').getAttribute('value'), status);
+        console.log('PROGRESS:', await page.evaluate(() => document.querySelector('progress')?.value ?? 1), status);
       await page.waitForTimeout(2000);
     }
     const [download] = await Promise.all([

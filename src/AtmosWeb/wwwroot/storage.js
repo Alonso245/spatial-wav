@@ -45,10 +45,11 @@
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       download(await handle.getFile(), name);
     },
-    layout(name, channels) {
+    layout(name, channels, sampleRate = 48000, bitDepth = 32) {
       download(new Blob([JSON.stringify({
-        layout: '9.1.6 with top middle/side pair', sampleRate: 48000,
-        format: 'IEEE Float32 LE', wavChannelMask: 0,
+        layout: '9.1.6 with top middle/side pair', sampleRate,
+        format: bitDepth === 16 ? 'PCM signed 16-bit LE' : 'IEEE Float32 LE',
+        bitDepth, dither: bitDepth === 16 ? 'TPDF' : null, wavChannelMask: 0,
         channels: channels.map((name, index) => ({ channel: index + 1, name })),
         renderer: 'Cavern'
       }, null, 2)], { type: 'application/json' }), name.replace(/\.wav$/i, '.channels.json'));

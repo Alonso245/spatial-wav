@@ -14,8 +14,11 @@ public static class Converter {
     public static readonly string[] ChannelOrder =
         ["L", "R", "C", "LFE", "Lrs", "Rrs", "Ls", "Rs", "Lw", "Rw", "Ltf", "Rtf", "Ltm", "Rtm", "Ltr", "Rtr"];
 
-    public static byte[] WaveHeader(long frames) {
-        long size = checked(frames * Channels * sizeof(float));
+    public static byte[] WaveHeader(long frames, ExportSettings? settings = null) {
+        settings ??= new(); settings.Validate();
+        long size;
+        try { size = checked(frames * Channels * (settings.BitDepth / 8)); }
+        catch (OverflowException) { throw new ConversionException("riffLimit"); }
         if (frames <= 0 || size > uint.MaxValue - HeaderBytes)
             throw new ConversionException("riffLimit");
         using var stream = new MemoryStream();
@@ -24,18 +27,19 @@ public static class Converter {
         Text("RIFF"); writer.Write((uint)(size + HeaderBytes - 8)); Text("WAVE");
         Text("fmt "); writer.Write(40u);
         writer.Write((ushort)0xfffe); writer.Write((ushort)Channels);
-        writer.Write(SampleRate); writer.Write(SampleRate * Channels * sizeof(float));
-        writer.Write((ushort)(Channels * sizeof(float))); writer.Write((ushort)32);
-        writer.Write((ushort)22); writer.Write((ushort)32);
+        writer.Write(settings.SampleRate); writer.Write(settings.SampleRate * Channels * (settings.BitDepth / 8));
+        writer.Write((ushort)(Channels * (settings.BitDepth / 8))); writer.Write((ushort)settings.BitDepth);
+        writer.Write((ushort)22); writer.Write((ushort)settings.BitDepth);
         writer.Write(0u); // WAVE has no standard mask for this layout; see companion JSON.
-        writer.Write(new Guid("00000003-0000-0010-8000-00aa00389b71").ToByteArray());
+        writer.Write(new Guid(settings.BitDepth == 32 ? "00000003-0000-0010-8000-00aa00389b71" : "00000001-0000-0010-8000-00aa00389b71").ToByteArray());
         Text("fact"); writer.Write(4u); writer.Write((uint)frames);
         Text("data"); writer.Write((uint)size);
         return stream.ToArray();
     }
 
     public static async Task Render(Stream input, Func<byte[], Task> write,
-        Action<double> progress, CancellationToken cancellation) {
+        Action<double> progress, CancellationToken cancellation, ExportSettings? settings = null) {
+        settings ??= new(); settings.Validate();
         CavernAmp.Bypass = true; // No native DLLs on the browser.
         using var reader = AudioReader.Open(input);
         if (reader is not EnhancedAC3Reader && reader is not AudioTrackReader)
@@ -51,7 +55,8 @@ public static class Converter {
         using var ownedRenderer = renderer;
         if (reader.SampleRate != SampleRate)
             throw new ConversionException("sampleRate");
-        byte[] header = WaveHeader(reader.Length);
+        byte[] header = WaveHeader(settings.FramesFor(reader.Length), settings);
+        var exporter = new AudioExporter(reader.Length, settings, write);
         var listener = new Listener(false) {
             SampleRate = SampleRate, UpdateRate = 64, AudioQuality = QualityModes.Perfect,
             Normalizer = 0, Volume = 1, LFESeparation = true, DirectLFE = true
@@ -63,27 +68,27 @@ public static class Converter {
         try {
             await write(header);
             // Bound output buffering to ~1 MiB; OPFS holds the full WAV, outside WASM memory.
-            var bytes = new byte[Channels * sizeof(float) * 16384];
+            var samples = new float[Channels * 16384];
             int used = 0;
             long rendered = 0;
             while (rendered < reader.Length) {
                 cancellation.ThrowIfCancellationRequested();
                 var block = listener.Render();
                 int frames = (int)Math.Min(listener.UpdateRate, reader.Length - rendered);
-                int count = frames * Channels * sizeof(float);
                 for (int i = 0; i < frames * Channels; i++)
                     if (!float.IsFinite(block[i]))
                         throw new ConversionException("invalidPcm");
-                Buffer.BlockCopy(block, 0, bytes, used, count);
-                used += count;
+                Array.Copy(block, 0, samples, used * Channels, frames * Channels);
+                used += frames;
                 rendered += frames;
-                if (used == bytes.Length || rendered == reader.Length) {
-                    await write(used == bytes.Length ? bytes : bytes[..used]);
+                if (used == 16384 || rendered == reader.Length) {
+                    await exporter.Append(samples, used, cancellation);
                     progress((double)rendered / reader.Length);
                     used = 0;
                     await Task.Delay(1, cancellation); // Let the browser paint and receive Cancel.
                 }
             }
+            await exporter.Finish(cancellation);
         } finally {
             listener.DetachAllSources();
         }

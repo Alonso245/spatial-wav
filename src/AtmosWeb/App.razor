@@ -26,7 +26,17 @@
         @if (!completed) {
         <label class="drop" for="audio-file"><span class="upload" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m-4 4 4-4 4 4M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" /></svg></span><strong>@(file?.Name ?? T("Elige un archivo de audio", "Choose an audio file"))</strong><span>@(file is null ? T("Buscar en tu dispositivo", "Browse your device") : $"{file.Size / 1048576d:F1} MiB · {T("Cambiar archivo", "Change file")}")</span><small>@T("EC3, EAC3, M4A o MP4 · Hasta 128 MiB", "EC3, EAC3, M4A or MP4 · Up to 128 MiB")</small></label>
         <InputFile id="audio-file" accept=".ec3,.eac3,.m4a,.mp4" OnChange="SelectFile" disabled="@busy" aria-label="@T("Seleccionar archivo de audio", "Select an audio file")" />
-        <div class="settings"><div><small>@T("Distribución de salida", "Output layout")</small><strong>9.1.6 <span>· @T("16 canales", "16 channels")</span></strong></div><div><small>@T("Formato de audio", "Audio format")</small><strong>WAV <span>· 48 kHz · Float 32</span></strong></div></div>
+        <div class="settings"><div><small>@T("Distribución de salida", "Output layout")</small><strong>9.1.6 <span>· @T("16 canales", "16 channels")</span></strong></div><div><small>@T("Formato de audio", "Audio format")</small><strong>WAV <span>· @Format(new(bitDepth, outputRate))</span></strong></div></div>
+        <details class="export-options">
+            <summary><span>@T("Ajustes de exportación", "Export settings")</span><span class="export-summary">@Format(new(bitDepth, outputRate)) <span class="settings-chevron" aria-hidden="true">⌄</span></span></summary>
+            <div class="export-body">
+                <div class="export-fields">
+                    <label for="bit-depth">@T("Profundidad de bits", "Bit depth")<select id="bit-depth" @bind="bitDepth" disabled="@busy" aria-describedby="export-help"><option value="32">32-bit float</option><option value="16">16-bit PCM</option></select></label>
+                    <label for="sample-rate">@T("Frecuencia de muestreo", "Sample rate")<select id="sample-rate" @bind="outputRate" disabled="@busy" aria-describedby="export-help"><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option><option value="96000">96 kHz</option></select></label>
+                </div>
+                <p id="export-help" class="export-help">@T("16 bits reduce el tamaño y la precisión; incluye dithering. Una frecuencia mayor no añade detalle al original.", "16-bit reduces size and precision; dithering is included. A higher sample rate adds no detail to the original.")</p>
+            </div>
+        </details>
         <button class="action" disabled="@(!ready || file is null || busy)" @onclick="Convert">@(busy ? T("Procesando en tu dispositivo…", "Processing on your device…") : T("Convertir a WAV", "Convert to WAV"))</button>
         }
         @if (busy) {
@@ -35,7 +45,7 @@
         }
         <p class="message" role="status">@if (preparingDownload || finalizing) { <span class="spinner" aria-hidden="true"></span> }@Message</p>
         @if (completed) {
-            <div class="result-card"><span class="result-icon" aria-hidden="true">✓</span><p class="result-name">@outputName</p><p class="result-format">WAV · 9.1.6 · @T("16 canales", "16 channels") · 48 kHz · Float 32</p></div>
+            <div class="result-card"><span class="result-icon" aria-hidden="true">✓</span><p class="result-name">@outputName</p><p class="result-format">WAV · 9.1.6 · @T("16 canales", "16 channels") · @Format(completedSettings)</p></div>
             <div class="downloads"><button class="action download-action" disabled="@preparingDownload" aria-busy="@(preparingDownload ? "true" : "false")" @onclick="Download">
                 @if (preparingDownload) { <span class="spinner" aria-hidden="true"></span> }
                 else { <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4" /></svg> }
@@ -58,6 +68,9 @@
     bool ready, busy, completed;
     bool preparingDownload, downloadRequested, finalizing;
     double fraction;
+    int bitDepth = 32, outputRate = 48000;
+    ExportSettings completedSettings = new();
+    string Format(ExportSettings settings) => $"{settings.SampleRate / 1000d:0.###} kHz · {settings.BitDepth}-bit {(settings.BitDepth == 32 ? "float" : "PCM")}";
     string language = "es", messageKey = "", outputName = "";
     CancellationTokenSource? cancellation;
 
@@ -79,6 +92,8 @@
         "missingJoc" => T("No se pudo convertir: no se detectaron objetos JOC compatibles. No se genera un falso 9.1.6 mediante upmix.", "Unable to convert: no compatible JOC objects were detected. This tool does not create a false 9.1.6 upmix."),
         "sampleRate" => T("No se pudo convertir: esta versión requiere una fuente de 48 kHz.", "Unable to convert: this version requires a 48 kHz source."),
         "riffLimit" => T("No se pudo convertir: la salida excede el límite WAV de 4 GiB. RF64 aún no está implementado.", "Unable to convert: the output exceeds the 4 GiB WAV limit. RF64 is not implemented yet."),
+        "integerRange" => T("La señal supera el rango de 16 bits. Elige 32-bit float para conservarla sin recortes.", "The signal exceeds the 16-bit range. Choose 32-bit float to preserve it without clipping."),
+        "outputSettings" => T("Selecciona una profundidad de bits y frecuencia compatibles.", "Select a supported bit depth and sample rate."),
         "invalidPcm" => T("No se pudo convertir: el motor produjo muestras de audio no válidas.", "Unable to convert: the engine produced invalid audio samples."),
         "storageError" => T("No se pudo convertir: no se pudo escribir la salida local. Comprueba el espacio disponible y los permisos del navegador.", "Unable to convert: local output could not be written. Check free storage and browser permissions."),
         "decodeError" => T("No se pudo convertir: no se pudo interpretar este archivo. Comprueba que contiene E-AC-3/JOC compatible y que no está protegido.", "Unable to convert: this file could not be decoded. Check that it contains supported, unprotected E-AC-3/JOC."),
@@ -118,6 +133,7 @@
         if (file is null || busy) return;
         busy = true; completed = false; fraction = 0;
         cancellation = new();
+        var export = new ExportSettings(bitDepth, outputRate);
         outputName = Path.GetFileNameWithoutExtension(file.Name) + "_Spatial_9.1.6.wav";
         try {
             messageKey = "reading";
@@ -129,10 +145,10 @@
             messageKey = "rendering";
             await Converter.Render(input,
                 async bytes => await JS.InvokeVoidAsync("spatial.write", bytes),
-                p => { fraction = p; StateHasChanged(); }, cancellation.Token);
+                p => { fraction = p; StateHasChanged(); }, cancellation.Token, export);
             finalizing = true; messageKey = "finalizing"; StateHasChanged();
             await JS.InvokeVoidAsync("spatial.finish");
-            completed = true; messageKey = "done";
+            completedSettings = export; completed = true; messageKey = "done";
         } catch (OperationCanceledException) {
             await JS.InvokeVoidAsync("spatial.discard"); messageKey = "cancelled";
         } catch (ConversionException e) {
@@ -161,5 +177,5 @@
             Console.Error.WriteLine(e); messageKey = "downloadError";
         } finally { preparingDownload = false; }
     }
-    async Task DownloadLayout() => await JS.InvokeVoidAsync("spatial.layout", outputName, Converter.ChannelOrder);
+    async Task DownloadLayout() => await JS.InvokeVoidAsync("spatial.layout", outputName, Converter.ChannelOrder, completedSettings.SampleRate, completedSettings.BitDepth);
 }

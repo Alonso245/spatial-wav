@@ -28,13 +28,14 @@ try {
 PannerRegression.Run(Check);
 MetadataRegression.Run(Check);
 MP4PaddingRegression.Run(Check);
+await ExportRegression.Run(Check);
 if (args.Length > 0) {
     // Match the browser input path: FileStream permits out-of-range seeks that
     // MemoryStream rejects, so File.OpenRead alone missed container bugs.
     using var input = new MemoryStream(File.ReadAllBytes(args[0]));
     using var output = File.Create(args.Length > 1 ? args[1] : "/tmp/atmos-smoke.wav");
     double progress = 0;
-    await Converter.Render(input, async bytes => await output.WriteAsync(bytes), p => progress = p, CancellationToken.None);
+    await Converter.Render(input, async bytes => await output.WriteAsync(bytes), p => progress = p, CancellationToken.None, args.Length > 3 ? new(int.Parse(args[2]), int.Parse(args[3])) : null);
     Check(progress == 1, "full JOC render completed");
     Check(output.Length > 80, "nonempty multichannel PCM output");
     Console.WriteLine($"OUTPUT: {output.Length} bytes");

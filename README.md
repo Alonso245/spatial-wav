@@ -1,6 +1,6 @@
 # Spatial / WAV — navegador, 9.1.6
 
-Prototipo gratuito y sin anuncios para convertir **E-AC-3/JOC** (`.ec3`, `.eac3`, `.m4a`, `.mp4`) en un WAV de 16 canales, 48 kHz y float32. La página y el motor se descargan de un alojamiento estático. Después, el audio se procesa en el dispositivo del visitante, sin Flask, FFmpeg, Dolby Reference Player ni servidor de conversión instalado en su computadora. La interfaz incluye español e inglés, detecta el idioma inicial del navegador y guarda la elección del selector ES/EN en el dispositivo. La marca visible es **Spatial / WAV**.
+Prototipo gratuito y sin anuncios para convertir **E-AC-3/JOC** (`.ec3`, `.eac3`, `.m4a`, `.mp4`) en un WAV de 16 canales: float32 o PCM de 16 bits, a 44.1, 48 o 96 kHz (48 kHz/float32 por defecto). La página y el motor se descargan de un alojamiento estático. Después, el audio se procesa en el dispositivo del visitante, sin Flask, FFmpeg, Dolby Reference Player ni servidor de conversión instalado en su computadora. La interfaz incluye español e inglés, detecta el idioma inicial del navegador y guarda la elección del selector ES/EN en el dispositivo. La marca visible es **Spatial / WAV**.
 
 ## Diferencia respecto al ZIP original
 
@@ -39,10 +39,11 @@ Las pruebas comprueban el encabezado WAV, límites RIFF y rechazo de datos invá
 ## Formato de salida y límites
 
 - Orden de canales: **L, R, C, LFE, Lrs, Rrs, Ls, Rs, Lw, Rw, Ltf, Rtf, Ltm, Rtm, Ltr, Rtr** (Cavern `ref916`, con superiores medios/laterales).
-- WAVEFORMATEXTENSIBLE, subformato IEEE float32 y máscara de altavoces **0**. La máscara WAVE no representa esta distribución de forma inequívoca. Descarga también el JSON y asigna explícitamente los canales en la DAW. No presupongas el orden del plugin Dolby del ZIP.
+- WAVEFORMATEXTENSIBLE, subformato IEEE float32 o PCM de 16 bits y máscara de altavoces **0**. La máscara WAVE no representa esta distribución de forma inequívoca. Descarga también el JSON y asigna explícitamente los canales en la DAW. No presupongas el orden del plugin Dolby del ZIP.
+- La exportación a 16 bits aplica dithering TPDF antes de cuantizar. Reduce la precisión y no es reversible. Si la señal supera el rango entero (incluidos posibles picos del remuestreo), se cancela y se recomienda float32, sin recortar ni normalizar silenciosamente el audio. A 48 kHz/float32 se conservan exactamente las muestras del render anterior.
 - El WAV contiene un render de altavoces, no objetos editables ni un máster Atmos.
-- Fuente a 48 kHz; no se implementa remuestreo. Entrada máxima de 128 MiB, cargada en memoria. Se rechazan salidas por encima del límite RIFF de 4 GiB; no hay RF64 todavía.
-- La salida se escribe por bloques en OPFS. Necesita espacio local: unos **184 MB por minuto** de audio. El navegador puede imponer una cuota menor. Los errores o cancelación eliminan la salida parcial.
+- Fuente a 48 kHz; el render se mantiene a esa frecuencia y la exportación permite 44.1, 48 o 96 kHz. El remuestreo usa sinc de ventana Blackman de 96 coeficientes por fase, con filtrado antialias. Aumentar la frecuencia no añade detalle. Entrada máxima de 128 MiB, cargada en memoria. Se rechazan salidas por encima del límite RIFF de 4 GiB; no hay RF64 todavía.
+- La salida se escribe por bloques en OPFS. Necesita espacio local: unos **184 MB por minuto** de audio a 48 kHz/float32; la mitad a 16 bits y el doble a 96 kHz. El navegador puede imponer una cuota menor. Los errores o cancelación eliminan la salida parcial.
 - Usa un navegador moderno y HTTPS. WebAssembly y OPFS son obligatorios; modos privados, cuotas de almacenamiento o restricciones móviles pueden impedir el proceso. No se ha validado compatibilidad general en móviles.
 - Mantén la pestaña abierta. La ejecución es cooperativa en el hilo del navegador y cede el control por bloques; aún no utiliza un Web Worker dedicado. El rendimiento puede ser inferior al de una aplicación nativa.
 - No se admite TrueHD, DRM ni descifrado. En MP4/M4A, Cavern selecciona su pista principal de audio; no hay selector de pistas.

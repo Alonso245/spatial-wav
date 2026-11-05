@@ -48,3 +48,20 @@ node tests/browser-smoke.cjs /ruta/muestra.m4a /tmp/salida.wav
 ```
 
 Las muestras compatibles deben ser proporcionadas por el usuario. No se sustituyeron las pruebas de audio por una descarga simulada ni por un WAV rellenado con ceros.
+
+## Exportación configurable (5 de noviembre de 2026)
+
+- 64 comprobaciones nativas, incluidas las regresiones anteriores y las seis combinaciones de 16-bit PCM / 32-bit float con 44.1, 48 y 96 kHz. Se verifican cabeceras, duración exacta redondeada al fotograma, independencia de canales, límites de bloques y vuelta del búfer circular.
+- Señal de 1 kHz: amplitud RMS conservada; impulsos: sin retraso añadido. En la conversión a 44.1 kHz, un tono de 23 kHz queda atenuado más de 70 dB para evitar aliasing.
+- Dithering TPDF a 16 bits: ruido acotado y sin sesgo medible en la prueba. Se rechazan muestras no finitas y señales fuera del rango entero; no se normaliza ni recorta la música automáticamente.
+- «Whiplash (English Version)» completa, entrada MemoryStream: la exportación predeterminada a 48 kHz/float32 coincide byte por byte con el WAV anterior. La exportación a 44.1 kHz/PCM16 termina con 258,658,928 bytes; ffprobe confirma 16 canales y 183.29 s, igual duración que el render predeterminado.
+- Chromium con el motor WebAssembly AOT: las seis combinaciones convierten un fragmento JOC real, descargan WAV y JSON concordantes y eliminan la salida temporal al reiniciar. Se verificaron ES/EN, temas claro/oscuro, anchuras de 320/390/1280 px, controles bloqueados durante el proceso y animación desactivada con movimiento reducido. No hubo subidas ni excepciones del navegador. Las pruebas móviles comprueban el diseño en Chromium de escritorio, no rendimiento en teléfonos reales.
+- El render de objetos sigue trabajando a 48 kHz. La conversión de frecuencia ocurre después, sobre los 16 canales, con sinc de ventana Blackman de 96 coeficientes. No recupera información ausente de la fuente ni modifica las limitaciones conocidas de las listas de edición MP4.
+
+Para repetir las pruebas de exportación reales en el navegador con un fragmento corto compatible:
+
+```sh
+node tests/browser-export.cjs /ruta/fragmento.ec3
+# También se puede escoger el formato en la prueba nativa:
+dotnet run --project tests/Smoke -c Release -- /ruta/audio.m4a /tmp/render.wav 16 44100
+```

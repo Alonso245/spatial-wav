@@ -3,6 +3,8 @@
   <ItemGroup>
     <Compile Include="../../src/AtmosWeb/Converter.cs" Link="Converter.cs" />
     <Compile Include="../../src/AtmosWeb/ConversionException.cs" Link="ConversionException.cs" />
+    <Compile Include="../../src/AtmosWeb/ExportSettings.cs" Link="ExportSettings.cs" />
+    <Compile Include="../../src/AtmosWeb/AudioExporter.cs" Link="AudioExporter.cs" />
     <ProjectReference Include="../../.deps/Cavern/Cavern.Format/Cavern.Format.csproj" />
   </ItemGroup>
 </Project>
