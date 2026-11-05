@@ -74,4 +74,14 @@ replace_once(metadata / 'ObjectInfoBlock.cs',
 replace_once(metadata / 'ObjectInfoBlock.cs',
     '            // Priority - unneccessary, everything\'s rendered\n            if ((blocks & 1) != 0 && !extractor.ReadBit())',
     '            // Priority (obj_basic_info_bits bit 1)\n            if ((blocks & 2) != 0 && !extractor.ReadBit())')
-print('Browser scheduling, speaker spread and OAMD parser adapters prepared.')
+
+# Return free boxes like other unknown boxes. Recursing to the following box
+# can cross a parent boundary or read beyond EOF. FileStream tolerated the
+# resulting seek; MemoryStream (used by the browser) correctly rejected it.
+replace_once(root / 'Cavern.Format/Container/MP4/Box.cs',
+    '            if (header == freeBox) {\n'
+    '                reader.Position = nextBox;\n'
+    '                return Parse(reader);\n'
+    '            }',
+    '            // Spatial WAV: padding is a normal box; the enclosing loop owns EOF.')
+print('Browser, object/OAMD and MP4 padding adapters prepared.')

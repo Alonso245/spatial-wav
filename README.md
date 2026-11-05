@@ -17,7 +17,7 @@ bash scripts/install-wasm-tools.sh
 bash scripts/build.sh
 ```
 
-El script obtiene Cavern en `.deps/Cavern`, fija el commit `7f530786b67f80cfaf0a7cf17187a8f5f680025d` y aplica un adaptador de ejecución secuencial a las operaciones JOC y al paralelizador. El navegador no necesita hilos WASM, `SharedArrayBuffer` ni cabeceras COOP/COEP. Las adaptaciones incluyen correcciones del tamaño de objetos y de la lectura de metadatos OAMD; se documentan en [docs/DECODER-FIXES.md](docs/DECODER-FIXES.md). La compilación genera `dist/wwwroot/`. Release compila el motor mediante AOT; la primera compilación tarda varios minutos y las siguientes reutilizan resultados. Debug usa ejecución interpretada y es considerablemente más lento para convertir audio.
+El script obtiene Cavern en `.deps/Cavern`, fija el commit `7f530786b67f80cfaf0a7cf17187a8f5f680025d` y aplica un adaptador de ejecución secuencial a las operaciones JOC y al paralelizador. El navegador no necesita hilos WASM, `SharedArrayBuffer` ni cabeceras COOP/COEP. Las adaptaciones incluyen correcciones del tamaño de objetos, la lectura de metadatos OAMD y los bloques de relleno del contenedor MP4; se documentan en [docs/DECODER-FIXES.md](docs/DECODER-FIXES.md). La compilación genera `dist/wwwroot/`. Release compila el motor mediante AOT; la primera compilación tarda varios minutos y las siguientes reutilizan resultados. Debug usa ejecución interpretada y es considerablemente más lento para convertir audio.
 
 `DOTNET_CLI_HOME` y `NUGET_PACKAGES` pueden configurarse para otros sistemas. En este entorno el SDK está en `/workspace/.tools/dotnet`; añádelo a `PATH`. Las variables predeterminadas del script usan ubicaciones escribibles bajo `/workspace`.
 
