@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/AtmosWeb/Converter.cs" Link="Converter.cs" />
+    <Compile Include="../../src/AtmosWeb/ConversionException.cs" Link="ConversionException.cs" />
+    <ProjectReference Include="../../.deps/Cavern/Cavern.Format/Cavern.Format.csproj" />
+  </ItemGroup>
+</Project>

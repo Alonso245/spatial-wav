@@ -1,0 +1,134 @@
+@namespace AtmosWeb
+@inject IJSRuntime JS
+
+<header>
+    <a class="brand" href="./"><span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span> spatial <span class="brand-divider">/</span> wav</a>
+    <div class="header-controls">
+        <span class="local-label"><span class="dot"></span> @T("En tu dispositivo", "On your device")</span>
+        <nav class="language-switch" aria-label="@T("Idioma", "Language")">
+            <button type="button" @onclick="UseSpanish" aria-pressed="@(language == "es" ? "true" : "false")" aria-label="Español">ES</button>
+            <button type="button" @onclick="UseEnglish" aria-pressed="@(language == "en" ? "true" : "false")" aria-label="English">EN</button>
+        </nav>
+    </div>
+</header>
+<main>
+    <p class="eyebrow">@T("UN POCO MÁS DE ESPACIO PARA TU AUDIO", "A LITTLE MORE ROOM FOR YOUR AUDIO")</p>
+    <h1>@T("Sonido que", "Sound that")<br /><span>@T("encuentra su lugar.", "finds its place.")</span></h1>
+    <p class="intro">@T("De E-AC-3/JOC a WAV 9.1.6, directamente en tu navegador.", "From E-AC-3/JOC to 9.1.6 WAV, right in your browser.")<br />@T("Sin instalaciones. Tu archivo se queda contigo.", "No installs. Your file stays with you.")</p>
+    <section class="panel" aria-labelledby="workspace-title">
+        <div class="panel-head"><h2 id="workspace-title">@T("Tu archivo", "Your file")</h2><span class="tag"><span class="dot"></span>@(ready ? T("Listo en tu dispositivo", "Ready on your device") : T("Comprobando navegador…", "Checking your browser…"))</span></div>
+        <label class="drop" for="audio-file"><span class="upload" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m-4 4 4-4 4 4M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" /></svg></span><strong>@(file?.Name ?? T("Elige un archivo de audio", "Choose an audio file"))</strong><span>@(file is null ? T("Buscar en tu dispositivo", "Browse your device") : $"{file.Size / 1048576d:F1} MiB · {T("Cambiar archivo", "Change file")}")</span><small>@T("EC3, EAC3, M4A o MP4 · Hasta 128 MiB", "EC3, EAC3, M4A or MP4 · Up to 128 MiB")</small></label>
+        <InputFile id="audio-file" accept=".ec3,.eac3,.m4a,.mp4" OnChange="SelectFile" disabled="@busy" aria-label="@T("Seleccionar archivo de audio", "Select an audio file")" />
+        <div class="settings"><div><small>@T("Distribución de salida", "Output layout")</small><strong>9.1.6 <span>· @T("16 canales", "16 channels")</span></strong></div><div><small>@T("Formato de audio", "Audio format")</small><strong>WAV <span>· 48 kHz · Float 32</span></strong></div></div>
+        <button class="action" disabled="@(!ready || file is null || busy)" @onclick="Convert">@(busy ? T("Procesando en tu dispositivo…", "Processing on your device…") : T("Convertir a WAV", "Convert to WAV"))</button>
+        @if (busy) {
+            <progress value="@fraction" max="1" aria-label="@T("Progreso de conversión", "Conversion progress")"></progress>
+            <button class="secondary" @onclick="Cancel">@T("Cancelar", "Cancel")</button>
+        }
+        <p class="message" role="status">@Message</p>
+        @if (completed) {
+            <div class="downloads"><button class="action" @onclick="Download">@T("Descargar WAV", "Download WAV")</button><button class="secondary" @onclick="DownloadLayout">@T("Descargar mapa de canales (JSON)", "Download channel map (JSON)")</button><button class="secondary" @onclick="Discard">@T("Borrar salida local", "Delete local output")</button></div>
+        }
+        <p class="privacy">@T("Procesamiento local. Sin subidas ni cuentas.", "Local processing. No uploads or accounts.")</p>
+    </section>
+    <p class="version-note">@T("Una herramienta pequeña para un sonido más amplio.", "A small tool for a wider sound.") <span>@T("Versión experimental.", "Experimental version.")</span></p>
+    <div class="notes">
+        <details><summary>@T("¿Qué contiene el WAV 9.1.6?", "What is in a 9.1.6 WAV?")</summary><p>@T("Un render de altavoces: nueve canales a nivel del oído, un LFE y seis superiores. El WAV final no conserva los objetos de audio editables.", "A speaker render: nine ear-level channels, one LFE and six overheads. The final WAV does not retain editable audio objects.")</p><p>@T("Orden", "Order"): L, R, C, LFE, Lrs, Rrs, Ls, Rs, Lw, Rw, Ltf, Rtf, Ltm, Rtm, Ltr, Rtr. @T("Descarga el mapa JSON para asignarlos en tu DAW. La máscara de altavoces del WAV queda sin especificar porque esta distribución no tiene una máscara estándar.", "Download the JSON map to assign them in your DAW. The WAV speaker mask is left unspecified because this layout has no standard mask.")</p></details>
+        <details><summary>@T("Compatibilidad y procesamiento local", "Compatibility and local processing")</summary><p>@T("Admite E-AC-3 con objetos JOC a 48 kHz y sin DRM. Necesita un navegador moderno, espacio de almacenamiento y la pestaña abierta. Los archivos largos pueden tardar en móviles. La primera visita descarga el motor; el audio permanece en tu dispositivo.", "Supports E-AC-3 with JOC objects at 48 kHz, without DRM. Requires a modern browser, free storage and an open tab. Long files may take time on mobile. The first visit downloads the engine; your audio stays on your device.")</p><p>@T("Motor", "Engine"): <a href="https://github.com/VoidXH/Cavern">Cavern</a>, @T("de", "by") <a href="https://en.sbence.hu">Bence Sgánetz</a>. @T("El renderizado puede diferir del de otros motores. La detección inicial de JOC no garantiza que todos los fotogramas se decodifiquen correctamente. Revisa el resultado antes de utilizarlo.", "Rendering may differ from other engines. Initial JOC detection does not guarantee correct decoding of every frame. Check the result before using it.") <a href="CAVERN-LICENSE.md">@T("Licencia del motor", "Engine license")</a>.</p></details>
+    </div>
+</main>
+<footer><span>@T("Hecho para escuchar con más espacio.", "More room for your sound.")</span><span>@T("Gratuito y sin anuncios · Proyecto independiente", "Free and ad-free · Independent project")</span></footer>
+
+@code {
+    const long MaxInput = 128L * 1024 * 1024;
+    IBrowserFile? file;
+    bool ready, busy, completed;
+    double fraction;
+    string language = "es", messageKey = "", outputName = "";
+    CancellationTokenSource? cancellation;
+
+    string T(string es, string en) => language == "en" ? en : es;
+    string Message => messageKey switch {
+        "browser" => T("Este navegador no ofrece el almacenamiento local necesario. Prueba una versión actual de Chrome, Edge, Firefox o Safari mediante HTTPS.", "This browser does not offer the required local storage. Try a current version of Chrome, Edge, Firefox or Safari over HTTPS."),
+        "extension" => T("Selecciona un archivo EC3, EAC3, M4A o MP4.", "Choose an EC3, EAC3, M4A or MP4 file."),
+        "size" => T("El límite de esta primera versión es 128 MiB.", "The input limit for this first version is 128 MiB."),
+        "selected" => T("Se verificará el contenido JOC al convertir; la extensión no confirma el formato.", "JOC content will be checked during conversion; a file extension does not confirm the format."),
+        "reading" => T("Leyendo el archivo local…", "Reading your local file…"),
+        "rendering" => T("Decodificando objetos y renderizando 16 altavoces…", "Decoding objects and rendering 16 speakers…"),
+        "done" => T("Conversión completada. Descarga el WAV y su mapa de canales.", "Conversion complete. Download your WAV and channel map."),
+        "cancelled" => T("Conversión cancelada. Se eliminó la salida parcial.", "Conversion cancelled. The partial output was deleted."),
+        "deleted" => T("Salida local eliminada.", "Local output deleted."),
+        "missingJoc" => T("No se pudo convertir: no se detectaron objetos JOC compatibles. No se genera un falso 9.1.6 mediante upmix.", "Unable to convert: no compatible JOC objects were detected. This tool does not create a false 9.1.6 upmix."),
+        "sampleRate" => T("No se pudo convertir: esta versión requiere una fuente de 48 kHz.", "Unable to convert: this version requires a 48 kHz source."),
+        "riffLimit" => T("No se pudo convertir: la salida excede el límite WAV de 4 GiB. RF64 aún no está implementado.", "Unable to convert: the output exceeds the 4 GiB WAV limit. RF64 is not implemented yet."),
+        "invalidPcm" => T("No se pudo convertir: el motor produjo muestras de audio no válidas.", "Unable to convert: the engine produced invalid audio samples."),
+        "storageError" => T("No se pudo convertir: no se pudo escribir la salida local. Comprueba el espacio disponible y los permisos del navegador.", "Unable to convert: local output could not be written. Check free storage and browser permissions."),
+        "decodeError" => T("No se pudo convertir: no se pudo interpretar este archivo. Comprueba que contiene E-AC-3/JOC compatible y que no está protegido.", "Unable to convert: this file could not be decoded. Check that it contains supported, unprotected E-AC-3/JOC."),
+        _ => ""
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (!firstRender) return;
+        try {
+            language = await JS.InvokeAsync<string>("spatialI18n.get");
+            ready = await JS.InvokeAsync<bool>("spatial.supported");
+            if (!ready) messageKey = "browser";
+        } catch (Exception e) { Console.Error.WriteLine(e); messageKey = "browser"; }
+        StateHasChanged();
+    }
+
+    Task UseSpanish() => SetLanguage("es");
+    Task UseEnglish() => SetLanguage("en");
+    async Task SetLanguage(string value) {
+        language = value;
+        await JS.InvokeVoidAsync("spatialI18n.set", value);
+    }
+
+    async Task SelectFile(InputFileChangeEventArgs args) {
+        if (busy) return;
+        completed = false;
+        await JS.InvokeVoidAsync("spatial.discard");
+        var chosen = args.File;
+        if (!new[] { ".ec3", ".eac3", ".m4a", ".mp4" }.Contains(Path.GetExtension(chosen.Name).ToLowerInvariant())) {
+            file = null; messageKey = "extension"; return;
+        }
+        if (chosen.Size > MaxInput) { file = null; messageKey = "size"; return; }
+        file = chosen; messageKey = "selected";
+    }
+
+    async Task Convert() {
+        if (file is null || busy) return;
+        busy = true; completed = false; fraction = 0;
+        cancellation = new();
+        outputName = Path.GetFileNameWithoutExtension(file.Name) + "_Spatial_9.1.6.wav";
+        try {
+            messageKey = "reading";
+            await JS.InvokeVoidAsync("spatial.begin");
+            using var input = new MemoryStream();
+            await using (var source = file.OpenReadStream(MaxInput, cancellation.Token))
+                await source.CopyToAsync(input, cancellation.Token);
+            input.Position = 0;
+            messageKey = "rendering";
+            await Converter.Render(input,
+                async bytes => await JS.InvokeVoidAsync("spatial.write", bytes),
+                p => { fraction = p; StateHasChanged(); }, cancellation.Token);
+            await JS.InvokeVoidAsync("spatial.finish");
+            completed = true; messageKey = "done";
+        } catch (OperationCanceledException) {
+            await JS.InvokeVoidAsync("spatial.discard"); messageKey = "cancelled";
+        } catch (ConversionException e) {
+            await JS.InvokeVoidAsync("spatial.discard"); messageKey = e.Code;
+        } catch (Exception e) {
+            Console.Error.WriteLine(e);
+            await JS.InvokeVoidAsync("spatial.discard");
+            messageKey = e is JSException ? "storageError" : "decodeError";
+        } finally {
+            busy = false; cancellation.Dispose(); cancellation = null;
+        }
+    }
+
+    void Cancel() { cancellation?.Cancel(); }
+    async Task Discard() { await JS.InvokeVoidAsync("spatial.discard"); completed = false; messageKey = "deleted"; }
+    async Task Download() => await JS.InvokeVoidAsync("spatial.download", outputName);
+    async Task DownloadLayout() => await JS.InvokeVoidAsync("spatial.layout", outputName, Converter.ChannelOrder);
+}

@@ -1,0 +1,45 @@
+name: Build and deploy Spatial WAV
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_CLI_HOME: /tmp/atmos-dotnet-cli
+      NUGET_PACKAGES: /tmp/atmos-nuget
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: bash scripts/install-wasm-tools.sh
+      - run: bash scripts/build.sh
+      - run: dotnet run --project tests/Smoke -c Release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spatial-static-site
+          path: dist/wwwroot
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
+        with:
+          path: dist/wwwroot
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
