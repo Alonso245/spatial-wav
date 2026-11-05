@@ -36,12 +36,6 @@ python3 -m http.server 8080 --bind 127.0.0.1 --directory dist/wwwroot
 
 Las pruebas comprueban el encabezado WAV, límites RIFF y rechazo de datos inválidos; cuando se proporciona una muestra, ejecutan el render JOC completo. El navegador debe probarse por separado: la prueba nativa no verifica WebAssembly ni OPFS.
 
-## Publicar una web estática
-
-Sube **el contenido** de `dist/wwwroot/` a un alojamiento HTTPS como GitHub Pages. No subas las muestras de audio. No hace falta un backend; servir los archivos de la web es distinto de ejecutar un servidor en la computadora de cada visitante. El `<base href="./">` permite servirla bajo la ruta del repositorio. El alojamiento debe entregar los archivos `.wasm` como `application/wasm`.
-
-La web publicada en GitHub Pages se sirve desde la rama **gh-pages**, carpeta raíz, con `.nojekyll`. Para actualizarla hay que compilar y subir el contenido de `dist/wwwroot` a esa rama. El flujo de Actions del repositorio es una alternativa de compilación y despliegue; no es el mecanismo de la publicación actual. Antes de distribuir una versión pública, revisa las condiciones de Cavern, incluidas las relativas a uso público. Ser gratuito y no mostrar anuncios no elimina las demás condiciones. Este repositorio no concede derechos sobre Dolby ni sobre los archivos del usuario.
-
 ## Formato de salida y límites
 
 - Orden de canales: **L, R, C, LFE, Lrs, Rrs, Ls, Rs, Lw, Rw, Ltf, Rtf, Ltm, Rtm, Ltr, Rtr** (Cavern `ref916`, con superiores medios/laterales).
