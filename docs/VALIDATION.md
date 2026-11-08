@@ -65,3 +65,29 @@ node tests/browser-export.cjs /ruta/fragmento.ec3
 # También se puede escoger el formato en la prueba nativa:
 dotnet run --project tests/Smoke -c Release -- /ruta/audio.m4a /tmp/render.wav 16 44100
 ```
+
+
+## Cola, arrastre y ZIP (8 de noviembre de 2026)
+
+- Chromium con compilación WebAssembly AOT: selección múltiple nativa, botón «Añadir archivos», arrastre real con `DataTransfer`, adición de nuevas selecciones sin perder las anteriores, nombres repetidos y arrastre sobre el panel tras terminar una tanda.
+- Conversión secuencial de fragmentos E-AC-3/JOC reales: un archivo malformado no impide convertir los siguientes; las descargas anteriores mantienen sus bytes y sus ajustes aunque se añadan archivos con otro formato. Un fallo simulado de escritura elimina solo el resultado parcial afectado. Se comprobó detener, reanudar, reintentar y vaciar la cola, así como el límite de 20 entradas.
+- Las excepciones de archivo controladas se registran en stdout. En Blazor, stderr activa el aviso crítico general; estos errores esperados ahora quedan en el mensaje de su archivo, sin mostrar falsamente que el motor no cargó.
+- «Whiplash (English Version)» completa mediante el nuevo puente `File`/`IJSStreamReference`: conversión y descarga de 563,066,960 bytes, 16 canales, 48 kHz/float32, 183.29 s. El WAV coincide byte por byte con la descarga pública anterior a este cambio. La prueba local tardó aproximadamente 38 s, incluida la escritura; no es una promesa de rendimiento en otros equipos.
+- ZIP generado únicamente al pulsar descargar todos. Las pruebas verifican CRC32, nombres Unicode, nombres repetidos diferenciados, exclusión de archivos fallidos, mapas JSON concordantes y coincidencia byte por byte entre los WAV individuales y los del ZIP. Se probaron resultados mezclados de float32/48 kHz y PCM16/44.1 kHz.
+- El ZIP usa STORE con cabeceras ZIP64 y copia `File.stream()` hacia OPFS. El test del navegador bloquea llamadas a `Blob.arrayBuffer()` sobre blobs mayores de 64 KiB para detectar acumulaciones de audios completos; las descargas conjuntas siguen funcionando. No se han probado archivos ZIP de más de 4 GiB en un dispositivo real.
+- La integridad ZIP64 se comprobó también con Python `zipfile`, el vector CRC32 conocido «123456789», una entrada vacía, Unicode y `unzip -t`. No se ha validado el extractor nativo de macOS en hardware real.
+- Cancelar el ZIP elimina el parcial y conserva los WAV. Un fallo simulado de cuota permite reintentar y seguir descargando individualmente. Repetir una descarga sin cambios reutiliza el ZIP; quitar entradas, vaciar la cola o iniciar otra conversión elimina la copia temporal. La limpieza mantiene desactivados los controles hasta terminar para evitar cambios concurrentes en la cola.
+- Lista desplegable, tema claro/oscuro, ES/EN y anchuras 320/390/1280 px comprobados. La preferencia de movimiento reducido desactiva las animaciones. También pasaron las regresiones de descarga individual, indicador de preparación, selección de tema, fuentes locales y formatos de exportación, y las 64 comprobaciones nativas de audio. Las pruebas no realizaron subidas ni peticiones a terceros.
+
+Para repetir con muestras privadas compatibles (no incluidas en el repositorio), prepara primero dos fragmentos EC3 de 1.056 s y 0.512 s mediante copia de la pista E-AC-3:
+
+```sh
+ffmpeg -i /ruta/muestra.m4a -map 0:a:0 -t 1.056 -c:a copy /tmp/spatial-night-sample.ec3
+ffmpeg -i /tmp/spatial-night-sample.ec3 -t 0.512 -c:a copy /tmp/spatial-batch-short.ec3
+# Sirve dist/wwwroot en 127.0.0.1:8080 después de compilar.
+node tests/browser-batch.cjs
+node tests/browser-archive.cjs
+node tests/zip-format.cjs
+```
+
+La compilación quedó en el borrador. Esta validación no implica una publicación nueva en GitHub Pages.

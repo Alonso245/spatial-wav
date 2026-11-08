@@ -1,5 +1,6 @@
 @namespace AtmosWeb
 @inject IJSRuntime JS
+@implements IDisposable
 
 <header>
     <a class="brand" href="./"><span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span> spatial <span class="brand-divider">/</span> wav</a>
@@ -16,42 +17,63 @@
     <h1>@T("Sonido que", "Sound that")<br /><span>@T("encuentra su lugar.", "finds its place.")</span></h1>
     <p class="intro">@T("De E-AC-3/JOC a WAV 9.1.6, directamente en tu navegador.", "From E-AC-3/JOC to 9.1.6 WAV, right in your browser.")<br />@T("Sin instalaciones. Tu archivo se queda contigo.", "No installs. Your file stays with you.")</p>
     <section class="panel" aria-labelledby="workspace-title">
-        <div class="panel-head"><h2 id="workspace-title">@(completed ? T("Tu WAV está listo", "Your WAV is ready") : T("Tu archivo", "Your file"))</h2>
-            @if (completed) {
-                <button class="new-conversion" disabled="@preparingDownload" @onclick="NewConversion"><span aria-hidden="true">＋</span> @T("Nueva conversión", "New conversion")</button>
+        <div class="panel-head"><h2 id="workspace-title">@(SingleReady ? T("Tu WAV está listo", "Your WAV is ready") : jobs.Count > 1 ? T("Tus archivos", "Your files") : T("Tu archivo", "Your file"))</h2>
+            @if (jobs.Count > 0) {
+                <div class="queue-tools"><button class="new-conversion" disabled="@(QueueLocked)" @onclick="PickFiles">@T("Añadir archivos", "Add files")</button><button class="new-conversion" disabled="@(QueueLocked)" @onclick="NewConversion"><span aria-hidden="true">＋</span> @T("Nueva conversión", "New conversion")</button></div>
             } else {
                 <span class="tag"><span class="dot"></span>@(ready ? T("Listo en tu dispositivo", "Ready on your device") : T("Comprobando navegador…", "Checking your browser…"))</span>
             }
         </div>
-        @if (!completed) {
-        <label class="drop" for="audio-file"><span class="upload" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m-4 4 4-4 4 4M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" /></svg></span><strong>@(file?.Name ?? T("Elige un archivo de audio", "Choose an audio file"))</strong><span>@(file is null ? T("Buscar en tu dispositivo", "Browse your device") : $"{file.Size / 1048576d:F1} MiB · {T("Cambiar archivo", "Change file")}")</span><small>@T("EC3, EAC3, M4A o MP4 · Hasta 128 MiB", "EC3, EAC3, M4A or MP4 · Up to 128 MiB")</small></label>
-        <InputFile id="audio-file" accept=".ec3,.eac3,.m4a,.mp4" OnChange="SelectFile" disabled="@busy" aria-label="@T("Seleccionar archivo de audio", "Select an audio file")" />
+        <input type="file" id="audio-file" accept=".ec3,.eac3,.m4a,.mp4" multiple disabled="@(!ready || QueueLocked)" aria-label="@T("Seleccionar archivos de audio", "Select audio files")" />
+        @if (!AllReady) {
+        <label class="drop" for="audio-file"><span class="upload" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m-4 4 4-4 4 4M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" /></svg></span><strong>@(jobs.Count == 1 ? jobs[0].Name : jobs.Count > 1 ? T($"{jobs.Count} archivos en la cola", $"{jobs.Count} files in the queue") : T("Elige o arrastra tus archivos", "Choose or drop your files"))</strong><span>@(jobs.Count == 0 ? T("Buscar en tu dispositivo", "Browse your device") : T("Añadir más archivos", "Add more files"))</span><small>@T("EC3, EAC3, M4A o MP4 · Hasta 128 MiB por archivo", "EC3, EAC3, M4A or MP4 · Up to 128 MiB per file")</small></label>
+        }
+        @if (jobs.Count > 1) {
+            <details class="queue-disclosure" open><summary class="queue-heading"><span>@T("Cola de conversión", "Conversion queue")</span><span>@T($"{jobs.Count(x => x.State == JobState.Ready)} de {jobs.Count} listos", $"{jobs.Count(x => x.State == JobState.Ready)} of {jobs.Count} ready") <span class="queue-chevron" aria-hidden="true">⌄</span></span></summary>
+            <ol class="file-queue">
+                @foreach (var job in jobs) {
+                    <li @key="job.Id" data-job-id="@job.Id" data-state="@job.State.ToString().ToLowerInvariant()">
+                        <div class="queue-row"><span class="queue-symbol" aria-hidden="true">@if (job.State is JobState.Reading or JobState.Rendering or JobState.Finalizing) { <span class="spinner"></span> } else { @(job.State == JobState.Ready ? "✓" : job.State == JobState.Failed ? "!" : "·") }</span><div class="queue-file"><strong>@job.Name</strong><small>@($"{job.Size / 1048576d:F1} MiB") · @JobStatus(job)</small></div><button class="remove-file" disabled="@(QueueLocked)" @onclick="() => Remove(job)" aria-label="@T($"Quitar {job.Name}", $"Remove {job.Name}")">×</button></div>
+                        @if (job.State == JobState.Failed) { <p class="queue-error">@ErrorMessage(job.Error)</p> }
+                        @if (job.State == JobState.Ready) { <ConversionResult Job="job" Compact="true" Language="@language" Preparing="@(preparingJobId == job.Id)" DownloadBusy="UiLocked" Download="Download" DownloadMap="DownloadLayout" /> }
+                    </li>
+                }
+            </ol></details>
+        }
+        @if (!AllReady) {
         <div class="settings"><div><small>@T("Distribución de salida", "Output layout")</small><strong>9.1.6 <span>· @T("16 canales", "16 channels")</span></strong></div><div><small>@T("Formato de audio", "Audio format")</small><strong>WAV <span>· @Format(new(bitDepth, outputRate))</span></strong></div></div>
         <details class="export-options">
             <summary><span>@T("Ajustes de exportación", "Export settings")</span><span class="export-summary">@Format(new(bitDepth, outputRate)) <span class="settings-chevron" aria-hidden="true">⌄</span></span></summary>
             <div class="export-body">
                 <div class="export-fields">
-                    <label for="bit-depth">@T("Profundidad de bits", "Bit depth")<select id="bit-depth" @bind="bitDepth" disabled="@busy" aria-describedby="export-help"><option value="32">32-bit float</option><option value="16">16-bit PCM</option></select></label>
-                    <label for="sample-rate">@T("Frecuencia de muestreo", "Sample rate")<select id="sample-rate" @bind="outputRate" disabled="@busy" aria-describedby="export-help"><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option><option value="96000">96 kHz</option></select></label>
+                    <label for="bit-depth">@T("Profundidad de bits", "Bit depth")<select id="bit-depth" @bind="bitDepth" disabled="@(QueueLocked)" aria-describedby="export-help"><option value="32">32-bit float</option><option value="16">16-bit PCM</option></select></label>
+                    <label for="sample-rate">@T("Frecuencia de muestreo", "Sample rate")<select id="sample-rate" @bind="outputRate" disabled="@(QueueLocked)" aria-describedby="export-help"><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option><option value="96000">96 kHz</option></select></label>
                 </div>
                 <p id="export-help" class="export-help">@T("16 bits reduce el tamaño y la precisión; incluye dithering. Una frecuencia mayor no añade detalle al original.", "16-bit reduces size and precision; dithering is included. A higher sample rate adds no detail to the original.")</p>
             </div>
         </details>
-        <button class="action" disabled="@(!ready || file is null || busy)" @onclick="Convert">@(busy ? T("Procesando en tu dispositivo…", "Processing on your device…") : T("Convertir a WAV", "Convert to WAV"))</button>
+        <button class="action convert-action" disabled="@(!ready || !jobs.Any(x => x.CanRetry) || QueueLocked)" @onclick="Convert">@(busy ? T("Procesando en tu dispositivo…", "Processing on your device…") : jobs.Count > 1 ? T("Convertir archivos a WAV", "Convert files to WAV") : T("Convertir a WAV", "Convert to WAV"))</button>
         }
         @if (busy) {
             <progress value="@fraction" max="1" aria-label="@T("Progreso de conversión", "Conversion progress")"></progress>
-            <button class="secondary" @onclick="Cancel">@T("Cancelar", "Cancel")</button>
+            <button class="secondary" @onclick="Cancel">@(jobs.Count > 1 ? T("Detener cola", "Stop queue") : T("Cancelar", "Cancel"))</button>
         }
-        <p class="message" role="status">@if (preparingDownload || finalizing) { <span class="spinner" aria-hidden="true"></span> }@Message</p>
-        @if (completed) {
-            <div class="result-card"><span class="result-icon" aria-hidden="true">✓</span><p class="result-name">@outputName</p><p class="result-format">WAV · 9.1.6 · @T("16 canales", "16 channels") · @Format(completedSettings)</p></div>
-            <div class="downloads"><button class="action download-action" disabled="@preparingDownload" aria-busy="@(preparingDownload ? "true" : "false")" @onclick="Download">
-                @if (preparingDownload) { <span class="spinner" aria-hidden="true"></span> }
-                else { <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4" /></svg> }
-                @(preparingDownload ? T("Preparando descarga…", "Preparing download…") : downloadRequested ? T("Descargar de nuevo", "Download again") : T("Descargar WAV", "Download WAV"))
-            </button><details class="channel-map"><summary>@T("Mapa de canales", "Channel map")</summary><button class="secondary" disabled="@preparingDownload" @onclick="DownloadLayout">@T("Descargar mapa de canales (JSON)", "Download channel map (JSON)")</button></details></div>
+        <p class="message" role="status">@if (DownloadBusy || finalizing) { <span class="spinner" aria-hidden="true"></span> }@Message</p>
+        @if (jobs.Count > 1 && ReadyCount > 0) {
+            <div class="batch-downloadbar">
+                <button class="action download-all" disabled="@(QueueLocked)" aria-busy="@(preparingArchive ? "true" : "false")" @onclick="DownloadAll">
+                    @if (preparingArchive) { <span class="spinner" aria-hidden="true"></span> }
+                    else { <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4h16v5H4zM6 9v11h12V9M10 13h4" /></svg> }
+                    @(preparingArchive ? T("Generando ZIP…", "Creating ZIP…") : T($"Descargar todos ({ReadyCount})", $"Download all ({ReadyCount})"))
+                </button>
+                <small>@T("Archivos listos · WAV + mapas de canales", "Ready files · WAV + channel maps")</small>
+                @if (preparingArchive) {
+                    <progress value="@archiveFraction" max="1" aria-label="@T("Progreso del ZIP", "ZIP progress")"></progress>
+                    <button class="secondary cancel-archive" @onclick="CancelArchive">@T("Cancelar ZIP", "Cancel ZIP")</button>
+                }
+            </div>
         }
+        @if (SingleReady) { <ConversionResult Job="jobs[0]" Language="@language" Preparing="@(preparingJobId == jobs[0].Id)" DownloadBusy="UiLocked" Download="Download" DownloadMap="DownloadLayout" /> }
         <p class="privacy">@T("Procesamiento local. Sin subidas ni cuentas.", "Local processing. No uploads or accounts.")</p>
     </section>
     <p class="version-note">@T("Una herramienta pequeña para un sonido más amplio.", "A small tool for a wider sound.") <span>@T("Versión experimental.", "Experimental version.")</span></p>
@@ -64,19 +86,28 @@
 
 @code {
     const long MaxInput = 128L * 1024 * 1024;
-    IBrowserFile? file;
-    bool ready, busy, completed;
-    bool preparingDownload, downloadRequested, finalizing;
+    readonly List<ConversionJob> jobs = new();
+    DotNetObjectReference<App>? bridge;
+    bool ready, busy, finalizing, preparingArchive, editingQueue;
+    double archiveFraction;
+    int ReadyCount => jobs.Count(x => x.State == JobState.Ready);
+    string? preparingJobId;
+    bool UiLocked => DownloadBusy || editingQueue;
+    bool QueueLocked => busy || UiLocked;
+    bool DownloadBusy => preparingJobId is not null || preparingArchive;
+    bool SingleReady => jobs.Count == 1 && jobs[0].State == JobState.Ready;
+    bool AllReady => jobs.Count > 0 && jobs.All(x => x.State == JobState.Ready);
     double fraction;
     int bitDepth = 32, outputRate = 48000;
-    ExportSettings completedSettings = new();
     string Format(ExportSettings settings) => $"{settings.SampleRate / 1000d:0.###} kHz · {settings.BitDepth}-bit {(settings.BitDepth == 32 ? "float" : "PCM")}";
-    string language = "es", messageKey = "", outputName = "";
+    string language = "es", messageKey = "";
     CancellationTokenSource? cancellation;
 
     string T(string es, string en) => language == "en" ? en : es;
-    string Message => messageKey switch {
+    string Message => messageKey == "batchDone" ? T("Cola terminada. Descarga los archivos listos; puedes volver a intentar los que fallaron.", "Queue finished. Download ready files; you can retry any that failed.") : ErrorMessage(messageKey);
+    string ErrorMessage(string key) => key switch {
         "browser" => T("Este navegador no ofrece el almacenamiento local necesario. Prueba una versión actual de Chrome, Edge, Firefox o Safari mediante HTTPS.", "This browser does not offer the required local storage. Try a current version of Chrome, Edge, Firefox or Safari over HTTPS."),
+        "queueLimit" => T("La cola admite hasta 20 archivos. Quita alguno para añadir más.", "The queue holds up to 20 files. Remove a file to add more."),
         "extension" => T("Selecciona un archivo EC3, EAC3, M4A o MP4.", "Choose an EC3, EAC3, M4A or MP4 file."),
         "size" => T("El límite de esta primera versión es 128 MiB.", "The input limit for this first version is 128 MiB."),
         "selected" => T("Se verificará el contenido JOC al convertir; la extensión no confirma el formato.", "JOC content will be checked during conversion; a file extension does not confirm the format."),
@@ -84,6 +115,10 @@
         "rendering" => T("Decodificando objetos y renderizando 16 altavoces…", "Decoding objects and rendering 16 speakers…"),
         "done" => T("Conversión completada.", "Conversion complete."),
         "finalizing" => T("Generando tu archivo WAV…", "Generating your WAV file…"),
+        "preparingArchive" => T("Generando el ZIP con tus archivos listos…", "Creating a ZIP with your ready files…"),
+        "archiveSent" => T("Descarga del ZIP iniciada.", "ZIP download started."),
+        "archiveCancelled" => T("Generación del ZIP cancelada. Tus WAV siguen disponibles.", "ZIP creation cancelled. Your WAVs are still available."),
+        "archiveError" => T("No se pudo generar el ZIP. Comprueba el espacio libre; tus WAV siguen disponibles para descargarlos por separado.", "The ZIP could not be created. Check free storage; your WAVs are still available to download individually."),
         "preparingDownload" => T("Preparando el archivo para descargar…", "Preparing your file for download…"),
         "downloadSent" => T("Descarga iniciada.", "Download started."),
         "downloadError" => T("No se pudo iniciar la descarga. Inténtalo de nuevo; tu WAV sigue disponible.", "The download could not be requested. Try again; your WAV is still available."),
@@ -104,9 +139,11 @@
         if (!firstRender) return;
         try {
             language = await JS.InvokeAsync<string>("spatialI18n.get");
+            bridge = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("spatial.attachPicker", bridge);
             ready = await JS.InvokeAsync<bool>("spatial.supported");
             if (!ready) messageKey = "browser";
-        } catch (Exception e) { Console.Error.WriteLine(e); messageKey = "browser"; }
+        } catch (Exception e) { Console.WriteLine(e); messageKey = "browser"; }
         StateHasChanged();
     }
 
@@ -117,65 +154,125 @@
         await JS.InvokeVoidAsync("spatialI18n.set", value);
     }
 
-    async Task SelectFile(InputFileChangeEventArgs args) {
-        if (busy) return;
-        completed = false;
-        await JS.InvokeVoidAsync("spatial.discard");
-        var chosen = args.File;
-        if (!new[] { ".ec3", ".eac3", ".m4a", ".mp4" }.Contains(Path.GetExtension(chosen.Name).ToLowerInvariant())) {
-            file = null; messageKey = "extension"; return;
+    [JSInvokable]
+    public async Task ReceiveFiles(SelectedAudio[] files) {
+        if (QueueLocked || !ready) {
+            foreach (var file in files) await JS.InvokeVoidAsync("spatial.releaseFile", file.Id);
+            return;
         }
-        if (chosen.Size > MaxInput) { file = null; messageKey = "size"; return; }
-        file = chosen; messageKey = "selected";
+        bool overflow = false;
+        foreach (var file in files) {
+            if (jobs.Count >= 20) { overflow = true; await JS.InvokeVoidAsync("spatial.releaseFile", file.Id); continue; }
+            var job = new ConversionJob(file);
+            if (!new[] { ".ec3", ".eac3", ".m4a", ".mp4" }.Contains(Path.GetExtension(file.Name).ToLowerInvariant())) job.Error = "extension";
+            else if (file.Size > MaxInput) job.Error = "size";
+            if (job.Error != "") { job.State = JobState.Failed; await JS.InvokeVoidAsync("spatial.releaseFile", file.Id); }
+            jobs.Add(job);
+        }
+        messageKey = overflow ? "queueLimit" : jobs.Count == 1 && jobs[0].Error != "" ? jobs[0].Error : "selected";
+        StateHasChanged();
+    }
+
+    string JobStatus(ConversionJob job) => job.State switch {
+        JobState.Pending => T("En espera", "Queued"), JobState.Reading => T("Leyendo…", "Reading…"),
+        JobState.Rendering => T("Convirtiendo…", "Converting…"), JobState.Finalizing => T("Generando WAV…", "Generating WAV…"),
+        JobState.Ready => T("Listo para descargar", "Ready to download"), JobState.Failed => T("No se pudo convertir", "Conversion failed"),
+        _ => T("Cancelado", "Cancelled")
+    };
+
+    async Task PickFiles() => await JS.InvokeVoidAsync("spatial.pickFiles");
+    async Task Remove(ConversionJob job) {
+        if (QueueLocked) return;
+        editingQueue = true; StateHasChanged();
+        try {
+            await JS.InvokeVoidAsync("spatial.discard", job.Id);
+            await JS.InvokeVoidAsync("spatial.releaseFile", job.Id);
+            jobs.Remove(job); messageKey = "";
+        } finally { editingQueue = false; }
     }
 
     async Task Convert() {
-        if (file is null || busy) return;
-        busy = true; completed = false; fraction = 0;
-        cancellation = new();
+        if (QueueLocked) return;
+        var pending = jobs.Where(x => x.CanRetry).ToArray();
+        if (pending.Length == 0) return;
+        busy = true; fraction = 0; cancellation = new();
         var export = new ExportSettings(bitDepth, outputRate);
-        outputName = Path.GetFileNameWithoutExtension(file.Name) + "_Spatial_9.1.6.wav";
         try {
-            messageKey = "reading";
-            await JS.InvokeVoidAsync("spatial.begin");
-            using var input = new MemoryStream();
-            await using (var source = file.OpenReadStream(MaxInput, cancellation.Token))
-                await source.CopyToAsync(input, cancellation.Token);
-            input.Position = 0;
-            messageKey = "rendering";
-            await Converter.Render(input,
-                async bytes => await JS.InvokeVoidAsync("spatial.write", bytes),
-                p => { fraction = p; StateHasChanged(); }, cancellation.Token, export);
-            finalizing = true; messageKey = "finalizing"; StateHasChanged();
-            await JS.InvokeVoidAsync("spatial.finish");
-            completedSettings = export; completed = true; messageKey = "done";
-        } catch (OperationCanceledException) {
-            await JS.InvokeVoidAsync("spatial.discard"); messageKey = "cancelled";
-        } catch (ConversionException e) {
-            await JS.InvokeVoidAsync("spatial.discard"); messageKey = e.Code;
-        } catch (Exception e) {
-            Console.Error.WriteLine(e);
-            await JS.InvokeVoidAsync("spatial.discard");
-            messageKey = e is JSException ? "storageError" : "decodeError";
+            foreach (var job in pending) {
+                if (cancellation.IsCancellationRequested) break;
+                job.Error = ""; job.State = JobState.Reading; fraction = 0; messageKey = "reading"; StateHasChanged();
+                try {
+                    await JS.InvokeVoidAsync("spatial.begin", job.Id);
+                    // Only one source is loaded into WASM memory at a time. JS keeps
+                    // stable File references across picker additions and dropped files.
+                    using (var input = new MemoryStream()) {
+                        await using var reference = await JS.InvokeAsync<IJSStreamReference>("spatial.openFile", job.Id);
+                        await using (var source = await reference.OpenReadStreamAsync(MaxInput, cancellation.Token))
+                            await source.CopyToAsync(input, cancellation.Token);
+                        input.Position = 0;
+                        job.State = JobState.Rendering; messageKey = "rendering"; StateHasChanged();
+                        await Converter.Render(input, async bytes => await JS.InvokeVoidAsync("spatial.write", bytes),
+                            p => { fraction = p; StateHasChanged(); }, cancellation.Token, export);
+                    }
+                    cancellation.Token.ThrowIfCancellationRequested();
+                    finalizing = true; job.State = JobState.Finalizing; messageKey = "finalizing"; StateHasChanged();
+                    await JS.InvokeVoidAsync("spatial.finish");
+                    job.Settings = export; job.State = JobState.Ready; messageKey = "done";
+                    await JS.InvokeVoidAsync("spatial.releaseFile", job.Id);
+                } catch (OperationCanceledException) {
+                    await JS.InvokeVoidAsync("spatial.discard", job.Id);
+                    job.State = JobState.Cancelled; messageKey = "cancelled";
+                    break;
+                } catch (Exception e) {
+                    Console.WriteLine(e);
+                    await JS.InvokeVoidAsync("spatial.discard", job.Id);
+                    job.Error = e is ConversionException conversion ? conversion.Code : e is JSException ? "storageError" : "decodeError";
+                    job.State = JobState.Failed; messageKey = job.Error;
+                } finally { finalizing = false; StateHasChanged(); }
+                await Task.Delay(1); // Allow the next file's status to paint.
+            }
+            if (pending.Length > 1 && !cancellation.IsCancellationRequested) messageKey = "batchDone";
         } finally {
-            busy = false; finalizing = false; cancellation.Dispose(); cancellation = null;
+            busy = false; cancellation.Dispose(); cancellation = null;
         }
     }
 
     void Cancel() { cancellation?.Cancel(); }
     async Task NewConversion() {
-        await JS.InvokeVoidAsync("spatial.discard");
-        completed = false; file = null; fraction = 0; outputName = ""; messageKey = ""; downloadRequested = false;
-    }
-    async Task Download() {
-        if (preparingDownload) return;
-        preparingDownload = true; messageKey = "preparingDownload"; StateHasChanged();
+        if (QueueLocked) return;
+        editingQueue = true; StateHasChanged();
         try {
-            await JS.InvokeVoidAsync("spatial.download", outputName);
-            downloadRequested = true; messageKey = "downloadSent";
-        } catch (Exception e) {
-            Console.Error.WriteLine(e); messageKey = "downloadError";
-        } finally { preparingDownload = false; }
+            await JS.InvokeVoidAsync("spatial.discard");
+            await JS.InvokeVoidAsync("spatial.clearFiles");
+            jobs.Clear(); fraction = 0; messageKey = "";
+        } finally { editingQueue = false; }
     }
-    async Task DownloadLayout() => await JS.InvokeVoidAsync("spatial.layout", outputName, Converter.ChannelOrder, completedSettings.SampleRate, completedSettings.BitDepth);
+
+    async Task Download(ConversionJob job) {
+        if (UiLocked) return;
+        preparingJobId = job.Id; messageKey = "preparingDownload"; StateHasChanged();
+        try {
+            await JS.InvokeVoidAsync("spatial.download", job.OutputName, job.Id);
+            job.DownloadRequested = true; messageKey = "downloadSent";
+        } catch (Exception e) { Console.WriteLine(e); messageKey = "downloadError"; }
+        finally { preparingJobId = null; }
+    }
+    [JSInvokable]
+    public void ArchiveProgress(double value) {
+        if (!preparingArchive) return;
+        archiveFraction = Math.Clamp(value, 0, 1); StateHasChanged();
+    }
+    async Task DownloadAll() {
+        if (QueueLocked || ReadyCount == 0) return;
+        preparingArchive = true; archiveFraction = 0; messageKey = "preparingArchive"; StateHasChanged();
+        var readyJobs = jobs.Where(x => x.State == JobState.Ready).Select(x => new { id = x.Id, name = x.OutputName, sampleRate = x.Settings.SampleRate, bitDepth = x.Settings.BitDepth }).ToArray();
+        try {
+            bool sent = await JS.InvokeAsync<bool>("spatial.downloadAll", readyJobs, Converter.ChannelOrder);
+            messageKey = sent ? "archiveSent" : "archiveCancelled";
+        } catch (Exception e) { Console.WriteLine(e); messageKey = "archiveError"; }
+        finally { preparingArchive = false; }
+    }
+    async Task CancelArchive() => await JS.InvokeVoidAsync("spatial.cancelArchive");
+    async Task DownloadLayout(ConversionJob job) => await JS.InvokeVoidAsync("spatial.layout", job.OutputName, Converter.ChannelOrder, job.Settings.SampleRate, job.Settings.BitDepth, job.Id);
+    public void Dispose() { cancellation?.Cancel(); bridge?.Dispose(); }
 }

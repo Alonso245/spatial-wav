@@ -36,6 +36,16 @@ python3 -m http.server 8080 --bind 127.0.0.1 --directory dist/wwwroot
 
 Las pruebas comprueban el encabezado WAV, límites RIFF y rechazo de datos inválidos; cuando se proporciona una muestra, ejecutan el render JOC completo. El navegador debe probarse por separado: la prueba nativa no verifica WebAssembly ni OPFS.
 
+## Varios archivos y arrastrar y soltar
+
+Se pueden seleccionar varios archivos o soltarlos sobre el conversor. Las selecciones posteriores se añaden a la cola, incluso después de terminar conversiones. La cola admite hasta 20 entradas y cada archivo mantiene el límite de 128 MiB. Las fuentes se conservan como referencias `File` del navegador y se carga solo una en la memoria de WebAssembly a la vez.
+
+La conversión es secuencial. Cada WAV terminado tiene un archivo OPFS independiente y su propio botón de descarga y mapa JSON. Un error de formato o almacenamiento elimina únicamente la salida parcial de ese archivo y permite continuar con los siguientes. Los ajustes de bits y frecuencia se guardan con cada resultado; modificarlos para otra conversión no cambia los anteriores.
+
+**Detener cola** cancela el archivo activo y deja los siguientes pendientes; vuelve a pulsar convertir para reintentar los cancelados o fallidos. Los resultados terminados se conservan. **Nueva conversión** vacía toda la cola y elimina sus salidas locales; la × de cada fila elimina solo esa entrada. Las descargas individuales siguen disponibles. **Descargar todos** reúne los resultados listos y sus mapas JSON en una única descarga ZIP; no genera el archivo hasta que se pulsa el botón.
+
+La lista de archivos es desplegable y mantiene la elección de abrir/cerrar mientras cambia la cola. El ZIP usa STORE (sin compresión) y cabeceras ZIP64: copia los WAV sin modificar ninguna muestra. Se escribe en OPFS por bloques y calcula CRC32 durante la copia, sin cargar todos los audios ni el archivo ZIP completo en RAM. Requiere espacio temporal adicional aproximadamente igual a los WAV reunidos. Un indicador muestra su progreso y **Cancelar ZIP** elimina solo el ZIP parcial; los WAV siguen disponibles. Si no hay cambios, una segunda descarga reutiliza el ZIP terminado. Al eliminar entradas o vaciar la cola se elimina también el ZIP temporal.
+
 ## Formato de salida y límites
 
 - Orden de canales: **L, R, C, LFE, Lrs, Rrs, Ls, Rs, Lw, Rw, Ltf, Rtf, Ltm, Rtm, Ltr, Rtr** (Cavern `ref916`, con superiores medios/laterales).
@@ -47,7 +57,7 @@ Las pruebas comprueban el encabezado WAV, límites RIFF y rechazo de datos invá
 - Usa un navegador moderno y HTTPS. WebAssembly y OPFS son obligatorios; modos privados, cuotas de almacenamiento o restricciones móviles pueden impedir el proceso. No se ha validado compatibilidad general en móviles.
 - Mantén la pestaña abierta. La ejecución es cooperativa en el hilo del navegador y cede el control por bloques; aún no utiliza un Web Worker dedicado. El rendimiento puede ser inferior al de una aplicación nativa.
 - No se admite TrueHD, DRM ni descifrado. En MP4/M4A, Cavern selecciona su pista principal de audio; no hay selector de pistas.
-- La salida temporal se elimina al cambiar de archivo, iniciar otra conversión, pulsar **Nueva conversión** o, como mejor esfuerzo, al cerrar la pestaña. Si el navegador se cierra inesperadamente, puede quedar un temporal: borra los datos de este sitio desde la configuración del navegador.
+- Cada salida temporal se elimina al quitar su entrada de la cola, pulsar **Nueva conversión** o, como mejor esfuerzo, al cerrar la pestaña. Si el navegador se cierra inesperadamente, puede quedar un temporal: borra los datos de este sitio desde la configuración del navegador.
 
 ## Privacidad
 
@@ -61,4 +71,4 @@ En la primera visita, una pantalla tenue permite elegir modo claro o noche antes
 
 La interfaz usa DM Sans y Newsreader, servidas desde `wwwroot/fonts` sin llamadas a proveedores externos. Los archivos proceden de los paquetes Fontsource Variable 5.3.0; sus licencias OFL acompañan a las fuentes.
 
-Al completar una conversión, la selección y el botón de convertir se sustituyen por un resultado con un check pequeño y una única descarga principal. El mapa de canales queda en un desplegable. Nueva conversión elimina el temporal y restablece la selección sin recargar. Al descargar se muestra un indicador de preparación y luego «Descarga iniciada»: no se afirma que el navegador haya terminado de guardar el archivo.
+Al completar un solo archivo, la selección y el botón de convertir se sustituyen por un resultado con un check pequeño y una única descarga principal. Con varios archivos, los resultados permanecen en la lista desplegable y aparece una descarga conjunta en ZIP para los archivos listos. El mapa de canales queda en un desplegable. Nueva conversión elimina el temporal y restablece la selección sin recargar. Al descargar se muestra un indicador de preparación y luego «Descarga iniciada»: no se afirma que el navegador haya terminado de guardar el archivo.

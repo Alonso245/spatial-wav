@@ -1,0 +1,24 @@
+@namespace AtmosWeb
+<div class="conversion-result @(Compact ? "compact-result" : "")">
+    @if (!Compact) {
+        <div class="result-card"><span class="result-icon" aria-hidden="true">✓</span><p class="result-name">@Job.OutputName</p><p class="result-format">WAV · 9.1.6 · @T("16 canales", "16 channels") · @Format</p></div>
+    } else {
+        <p class="result-format">WAV · 9.1.6 · @Format</p>
+    }
+    <div class="downloads"><button class="action download-action" disabled="@DownloadBusy" aria-busy="@(Preparing ? "true" : "false")" @onclick="() => Download.InvokeAsync(Job)">
+        @if (Preparing) { <span class="spinner" aria-hidden="true"></span> }
+        else { <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4" /></svg> }
+        @(Preparing ? T("Preparando descarga…", "Preparing download…") : Job.DownloadRequested ? T("Descargar de nuevo", "Download again") : T("Descargar WAV", "Download WAV"))
+    </button><details class="channel-map"><summary>@T("Mapa de canales", "Channel map")</summary><button class="secondary" disabled="@DownloadBusy" @onclick="() => DownloadMap.InvokeAsync(Job)">@T("Descargar mapa de canales (JSON)", "Download channel map (JSON)")</button></details></div>
+</div>
+@code {
+    [Parameter, EditorRequired] public ConversionJob Job { get; set; } = default!;
+    [Parameter] public bool Compact { get; set; }
+    [Parameter] public bool Preparing { get; set; }
+    [Parameter] public bool DownloadBusy { get; set; }
+    [Parameter] public string Language { get; set; } = "es";
+    [Parameter] public EventCallback<ConversionJob> Download { get; set; }
+    [Parameter] public EventCallback<ConversionJob> DownloadMap { get; set; }
+    string T(string es, string en) => Language == "en" ? en : es;
+    string Format => $"{Job.Settings.SampleRate / 1000d:0.###} kHz · {Job.Settings.BitDepth}-bit {(Job.Settings.BitDepth == 32 ? "float" : "PCM")}";
+}

@@ -28,6 +28,7 @@ const assert = require('node:assert/strict');
     assert.equal(await page.getByRole('button', { name: 'Descargar WAV', exact: true }).count(), 0);
     console.log('PASS: malformed audio rejected without download');
 
+    await page.getByRole('button', { name: 'Nueva conversión' }).click();
     await page.locator('input[type=file]').setInputFiles(sample);
     const conversionStarted = Date.now();
     await page.getByRole('button', { name: 'Convertir a WAV', exact: true }).click();
