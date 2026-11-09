@@ -18,6 +18,16 @@
   };
   const abort = () => new DOMException('ZIP generation cancelled.', 'AbortError');
   window.spatialZip = {
+    measure(entries) {
+      let size = 98; // ZIP64 end record, locator, and classic end record.
+      for (const entry of entries) {
+        const length = encoder.encode(entry.name).length;
+        if (!length || length > 65535 || !Number.isSafeInteger(entry.size) || entry.size < 0) throw new Error('Invalid ZIP entry.');
+        size += entry.size + 148 + length * 2; // Local header, descriptor, directory, and two UTF-8 names.
+      }
+      if (!Number.isSafeInteger(size)) throw new Error('ZIP size is out of range.');
+      return size;
+    },
     async build(entries, destination, { progress = async () => {}, cancelled = () => false } = {}) {
       let offset = 0, processed = 0, reported = 0;
       const total = entries.reduce((sum, entry) => sum + entry.data.size, 0);
