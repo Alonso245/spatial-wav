@@ -52,7 +52,7 @@
             await write(value); copied += value.length; processed += value.length;
             if (processed - reported >= 4 * 1024 * 1024) {
               reported = processed; await progress(total ? processed / total : 0);
-              await new Promise(resolve => setTimeout(resolve, 0));
+              await spatialCooperate();
             }
           }
         } finally {
