@@ -21,6 +21,14 @@
       channels: channels.map((name, index) => ({ channel: index + 1, name })), renderer: 'Cavern'
     }, null, 2)], { type: 'application/json' });
   }
+  function archivePlan(jobs, channels) {
+    return jobs.flatMap((job, index) => {
+      const safe = job.name.normalize('NFC').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g, '_').replace(/^\.+/, '_');
+      const name = String(index + 1).padStart(2, '0') + '_' + safe;
+      const map = layoutBlob(channels, job.sampleRate, job.bitDepth);
+      return [{ name, id: job.id, size: job.size }, { name: name.replace(/\.wav$/i, '.channels.json'), size: map.size, data: map }];
+    });
+  }
   async function discard(id) {
     if (id == null) { archiveCancelled = true; await discardArchive(); }
     else if (archive) await discardArchive();
@@ -152,10 +160,12 @@
     },
     cancelConversion() { if (activeId) converter?.postMessage({ type: 'cancel', id: activeId }); },
     cooperate() { return spatialCooperate(); },
-    finish() {
+    async finish() {
       const output = outputs.get(activeId);
       if (!output || output.working) throw new Error('The output is not ready.');
+      const file = await output.handle.getFile();
       activeId = undefined;
+      return file.size;
     },
     discard,
     async download(name, id) {
@@ -169,6 +179,7 @@
     layout(name, channels, sampleRate = 48000, bitDepth = 32, id = 'default') {
       download(layoutBlob(channels, sampleRate, bitDepth), name.replace(/\.wav$/i, '.channels.json'), 'layout:' + id);
     },
+    archiveSize(jobs, channels) { return spatialZip.measure(archivePlan(jobs, channels)); },
     cancelArchive() { archiveCancelled = true; },
     async downloadAll(jobs, channels) {
       archiveCancelled = false;
@@ -181,14 +192,11 @@
       await discardArchive();
       try {
         const entries = [];
-        for (let index = 0; index < jobs.length; index++) {
-          const job = jobs[index], output = outputs.get(job.id);
+        for (const planned of archivePlan(jobs, channels)) {
+          if (planned.data) { entries.push({ name: planned.name, data: planned.data }); continue; }
+          const output = outputs.get(planned.id);
           if (!output?.handle || output.writable || output.working) throw new Error('A WAV is not ready.');
-          // Prefixes distinguish identical names, including on case-insensitive disks.
-          const safe = job.name.normalize('NFC').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g, '_').replace(/^\.+/, '_');
-          const name = String(index + 1).padStart(2, '0') + '_' + safe;
-          entries.push({ name, data: await output.handle.getFile() });
-          entries.push({ name: name.replace(/\.wav$/i, '.channels.json'), data: layoutBlob(channels, job.sampleRate, job.bitDepth) });
+          entries.push({ name: planned.name, data: await output.handle.getFile() });
         }
         if (!entries.length) throw new Error('No completed WAVs.');
         root = await navigator.storage.getDirectory();

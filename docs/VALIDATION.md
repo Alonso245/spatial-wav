@@ -114,3 +114,26 @@ node tests/browser-worker-recovery.cjs
 ```
 
 El cambio queda en el borrador, sin publicación nueva en GitHub Pages.
+
+## Preferencias, reintentos y tamaños (9 de noviembre de 2026)
+
+- Compilación Release AOT completada y validada en Chromium local. `browser-comfort.cjs` convierte audio JOC real y comprueba que el reintento individual no procesa otra entrada fallida ni una pendiente. El resultado previo se conserva y el nuevo utiliza los ajustes elegidos. El WAV predeterminado se comparó byte por byte con la referencia anterior.
+- Los tamaños de los WAV coinciden con los archivos descargados. El tamaño previo del ZIP coincide byte por byte con ZIP64 reales con nombres Unicode, duplicados y formatos mezclados. La medición no genera un ZIP ni lee los audios completos en memoria. Pasaron `zip-format.cjs` y `browser-archive.cjs`, incluidos CRC, cancelación, cuota y reutilización del ZIP.
+- Se comprobó un diálogo nativo real al intentar recargar durante una conversión y continuar tras descartarlo. El aviso está activo durante la generación del ZIP y se retira tras finalizar, incluso si falla una entrada. Las regresiones de cola conservan cancelación, limpieza y recuperación de escritura fallida.
+- Las notificaciones se simulan en las pruebas para evitar permisos o avisos del sistema operativo: no hay petición al cargar la página, el clic que la solicita mantiene `navigator.userActivation.isActive`, el permiso concedido se reutiliza y un fallo al mostrar el aviso no afecta a los WAV. `preferences.cjs` cubre permisos denegados, API ausente, rechazo de la petición, persistencia voluntaria, almacenamiento bloqueado y actividades solapadas. No se validó entrega real de notificaciones en macOS o Edge.
+- Recarga con bits/frecuencia conservados; datos guardados inválidos vuelven a 32-bit float / 48 kHz. Apariencia revisada en claro/noche, ES/EN, anchos 320/390/1100 y movimiento reducido. Pasaron además `browser-batch.cjs`, las seis combinaciones de `browser-export.cjs` y `browser-night.cjs`, sin subidas de audio ni errores JavaScript no controlados.
+
+Para repetir, con la web compilada servida en `127.0.0.1:8080` y las muestras privadas de desarrollo disponibles:
+
+```sh
+node tests/preferences.cjs
+node tests/zip-format.cjs
+node tests/browser-comfort.cjs
+node tests/browser-archive.cjs
+node tests/browser-batch.cjs
+node tests/browser-export.cjs /ruta/fragmento-joc.ec3
+node tests/browser-night.cjs /ruta/fragmento-joc.ec3
+# Opcional: SPATIAL_BASELINE_WAV=/ruta/referencia.wav para comparar el audio anterior.
+```
+
+Las pruebas de navegador requieren Playwright, Chromium y `NODE_PATH` adecuado a la instalación. Los archivos privados y las capturas quedan fuera del repositorio. La publicación utiliza la rama `gh-pages` con el mismo artefacto Release AOT validado.

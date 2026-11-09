@@ -46,6 +46,12 @@ La conversión es secuencial. Cada WAV terminado tiene un archivo OPFS independi
 
 La lista de archivos es desplegable y mantiene la elección de abrir/cerrar mientras cambia la cola. El ZIP usa STORE (sin compresión) y cabeceras ZIP64: copia los WAV sin modificar ninguna muestra. Se escribe en OPFS por bloques y calcula CRC32 durante la copia, sin cargar todos los audios ni el archivo ZIP completo en RAM. Requiere espacio temporal adicional aproximadamente igual a los WAV reunidos. Un indicador muestra su progreso y **Cancelar ZIP** elimina solo el ZIP parcial; los WAV siguen disponibles. Si no hay cambios, una segunda descarga reutiliza el ZIP terminado. Al eliminar entradas o vaciar la cola se elimina también el ZIP temporal.
 
+Cada entrada fallida o cancelada compatible incluye **Reintentar**, que procesa únicamente ese archivo con los ajustes actuales. Los otros resultados y las entradas pendientes se conservan. Se muestra el tamaño del WAV terminado y del ZIP antes de descargar: el primero se lee del archivo real y el segundo suma los WAV, mapas JSON, nombres UTF-8 y cabeceras ZIP64 sin crear el ZIP anticipadamente. Los valores visibles se redondean para facilitar la lectura.
+
+Mientras se convierte o se genera el ZIP se solicita al navegador su aviso nativo al cerrar o recargar. El aviso se retira al terminar, cancelar o fallar; depende del soporte del navegador y de una interacción previa, y no impide cierres forzados o la suspensión del dispositivo.
+
+En **A tu gusto** se pueden activar notificaciones de finalización. Se pide permiso únicamente al pulsar el interruptor y solo se notifican los recuentos de resultados, sin nombres de archivos. Requiere una API de notificaciones compatible y un contexto seguro; los permisos denegados o fallos del sistema de avisos no afectan al audio. Los bits y la frecuencia elegidos se recuerdan en `localStorage`, junto con la elección de avisos. Si el almacenamiento está bloqueado, los ajustes siguen funcionando durante la sesión. No se guardan fuentes de audio ni resultados entre visitas mediante estas preferencias.
+
 ## Formato de salida y límites
 
 - Orden de canales: **L, R, C, LFE, Lrs, Rrs, Ls, Rs, Lw, Rw, Ltf, Rtf, Ltm, Rtm, Ltr, Rtr** (Cavern `ref916`, con superiores medios/laterales).

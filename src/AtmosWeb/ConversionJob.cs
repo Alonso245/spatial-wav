@@ -17,6 +17,7 @@ public sealed class ConversionJob(SelectedAudio file) {
     public string Error { get; set; } = "";
     public bool CanRetry => State is JobState.Pending or JobState.Cancelled ||
         (State == JobState.Failed && Error is not ("extension" or "size"));
+    public long OutputBytes { get; set; }
     public bool DownloadRequested { get; set; }
     public ExportSettings Settings { get; set; } = new();
 }

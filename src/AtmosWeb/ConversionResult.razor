@@ -5,6 +5,7 @@
     } else {
         <p class="result-format">WAV · 9.1.6 · @Format</p>
     }
+    <p class="output-size"><span class="size-pill" data-bytes="@Job.OutputBytes" title="@($"{Job.OutputBytes:N0} bytes")">@T("WAV listo", "Ready WAV") <span aria-hidden="true">·</span> @FileSize.Display(Job.OutputBytes)</span></p>
     <div class="downloads"><button class="action download-action" disabled="@DownloadBusy" aria-busy="@(Preparing ? "true" : "false")" @onclick="() => Download.InvokeAsync(Job)">
         @if (Preparing) { <span class="spinner" aria-hidden="true"></span> }
         else { <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4" /></svg> }

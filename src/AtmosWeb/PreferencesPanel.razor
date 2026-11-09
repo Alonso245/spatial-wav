@@ -1,0 +1,24 @@
+@namespace AtmosWeb
+<details class="personal-preferences">
+    <summary><span><span class="soft-sparkle" aria-hidden="true">✧</span> @T("A tu gusto", "Make it yours")</span><span class="preference-summary">@T("Preferencias", "Preferences") <span class="settings-chevron" aria-hidden="true">⌄</span></span></summary>
+    <div class="personal-body">
+        <div class="notice-row">
+            <div><strong>@T("Avisarme al terminar", "Notify me when finished")</strong><p id="notice-description">@T("Un aviso para volver a tus archivos.", "A little reminder to return to your files.")</p></div>
+            <button type="button" class="notice-switch" role="switch" data-notification-toggle aria-checked="@(Notice.Enabled ? "true" : "false")" aria-busy="@(Notice.Requesting ? "true" : "false")" disabled="@(!Notice.Supported || Notice.Requesting || Notice.Permission == "denied")" aria-label="@T("Avisarme al terminar", "Notify me when finished")" aria-describedby="notice-description notice-help"><span class="switch-knob" aria-hidden="true"></span></button>
+        </div>
+        <p id="notice-help" class="preference-help" aria-live="polite">@NoticeHint</p>
+        <p class="remember-note"><span aria-hidden="true">♡</span> @T(Persistent ? "Tus ajustes de audio se guardan en este dispositivo." : "Tus ajustes de audio se aplican a esta sesión.", Persistent ? "Your audio settings are saved on this device." : "Your audio settings apply to this session.")</p>
+    </div>
+</details>
+@code {
+    [Parameter] public NoticeState Notice { get; set; } = new();
+    [Parameter] public bool Persistent { get; set; } = true;
+    [Parameter] public string Language { get; set; } = "es";
+    string T(string es, string en) => Language == "en" ? en : es;
+    string NoticeHint => Notice.Requesting ? T("Esperando tu permiso…", "Waiting for your permission…")
+        : Notice.Problem == "failed" ? T("El navegador no pudo mostrar el aviso. Tus archivos siguen aquí.", "The browser could not show the notification. Your files are still here.")
+        : !Notice.Supported ? T("Las notificaciones no están disponibles en este navegador.", "Notifications are unavailable in this browser.")
+        : Notice.Permission == "denied" ? T("El navegador bloquea los avisos. Puedes permitirlos en sus permisos.", "Notifications are blocked. You can allow them in the browser permissions.")
+        : Notice.Enabled ? T("Activado. Te avisaremos al terminar la conversión.", "Enabled. We will notify you when conversion finishes.")
+        : T("Opcional. Solo pediremos permiso cuando lo actives.", "Optional. Permission is requested only when you turn this on.");
+}
