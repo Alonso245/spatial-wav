@@ -141,6 +141,11 @@ Las pruebas de navegador requieren Playwright, Chromium y `NODE_PATH` adecuado a
 
 ### Comprobación después de publicar
 
-GitHub Pages desplegó correctamente `e13b707` ([ejecución 42586956848](https://github.com/Alonso245/vigilant-eureka/actions/runs/42586956848)). El HTML, las preferencias, el almacenamiento y el manifiesto públicos coinciden con el artefacto probado. Se verificaron los hashes de integridad y las versiones gzip de 49 recursos del motor antes de publicar.
+GitHub Pages desplegó correctamente `e13b707` ([ejecución 42586956848](https://github.com/Alonso245/spatial-wav/actions/runs/42586956848)). El HTML, las preferencias, el almacenamiento y el manifiesto públicos coinciden con el artefacto probado. Se verificaron los hashes de integridad y las versiones gzip de 49 recursos del motor antes de publicar.
 
 `browser-release.cjs` pasó contra la dirección pública con «Whiplash (English Version)» completa: el WAV a 48 kHz/float32 tiene 563,066,960 bytes y coincide byte por byte con la referencia anterior. También pasó un ZIP de resultados a 48 kHz/32-bit y 44.1 kHz/16-bit, con CRC y mapas JSON válidos y el tamaño previsto exacto. Se comprobó reintentar una entrada fallida sin cambiar las terminadas, retirar el aviso de cierre al terminar, recordar ajustes tras recargar, ES/EN y los dos temas a 390 px. No se observaron subidas, peticiones a terceros ni excepciones JavaScript. Las pruebas se ejecutaron en Chromium; no equivalen a validar todos los navegadores ni todos los archivos de entrada.
+
+
+### Cambio de nombre a spatial-wav
+
+El repositorio se renombró a `Alonso245/spatial-wav` y GitHub Pages completó la publicación en https://alonso245.github.io/spatial-wav/ ([ejecución 42589264137](https://github.com/Alonso245/spatial-wav/actions/runs/42589264137)). El HTML servido coincide con el artefacto publicado. `browser-release.cjs` pasó desde la nueva dirección con el fragmento JOC de desarrollo: WAV idéntico a la referencia, descarga ZIP con tamaños y CRC válidos, reintento individual, preferencias, ES/EN y temas en móvil, sin subidas ni excepciones del navegador.

@@ -4,7 +4,7 @@ const {chromium}=require('playwright');
 const assert=require('node:assert/strict'),fs=require('node:fs');
 const {execFileSync}=require('node:child_process');
 (async()=>{
- const site=process.env.SPATIAL_TEST_URL||'https://alonso245.github.io/vigilant-eureka/';
+ const site=process.env.SPATIAL_TEST_URL||'https://alonso245.github.io/spatial-wav/';
  const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});
  try {
   const page=await browser.newPage({acceptDownloads:true,locale:'es-PE',viewport:{width:1280,height:1000}}),errors=[],uploads=[],remote=[];
@@ -24,7 +24,7 @@ const {execFileSync}=require('node:child_process');
   assert.equal(header.toString('ascii',0,4),'RIFF');assert.equal(header.readUInt16LE(22),16);assert.equal(header.readUInt32LE(24),48000);assert.equal(header.readUInt16LE(34),32);
   assert.equal(header.readUInt32LE(76)+80,fs.statSync(output).size);assert.equal(await guarded(),false);
   if(process.argv[3])execFileSync('cmp',[output,process.argv[3]]);
-  console.log('PASS: public AOT worker converts full M4A; real WAV size/header and previous audio bytes match');
+  console.log('PASS: public AOT worker converts source audio; real WAV size/header and previous audio bytes match');
   await input.setInputFiles([{name:'pequeño.ec3',mimeType:'audio/eac3',buffer:fs.readFileSync('/tmp/spatial-batch-short.ec3')},{name:'bad.ec3',mimeType:'audio/eac3',buffer:Buffer.alloc(256)}]);
   await page.waitForFunction(()=>document.querySelectorAll('.file-queue>li').length===3);
   await page.locator('.export-options').evaluate(el=>el.open=true);await page.locator('#bit-depth').selectOption('16');await page.locator('#sample-rate').selectOption('44100');

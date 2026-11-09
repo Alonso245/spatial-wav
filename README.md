@@ -1,5 +1,7 @@
 # Spatial / WAV — navegador, 9.1.6
 
+[Abrir la web](https://alonso245.github.io/spatial-wav/)
+
 Prototipo gratuito y sin anuncios para convertir **E-AC-3/JOC** (`.ec3`, `.eac3`, `.m4a`, `.mp4`) en un WAV de 16 canales: float32 o PCM de 16 bits, a 44.1, 48 o 96 kHz (48 kHz/float32 por defecto). La página y el motor se descargan de un alojamiento estático. Después, el audio se procesa en el dispositivo del visitante, sin Flask, FFmpeg, Dolby Reference Player ni servidor de conversión instalado en su computadora. La interfaz incluye español e inglés, detecta el idioma inicial del navegador y guarda la elección del selector ES/EN en el dispositivo. La marca visible es **Spatial / WAV**.
 
 ## Diferencia respecto al ZIP original
