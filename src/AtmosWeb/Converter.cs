@@ -38,8 +38,9 @@ public static class Converter {
     }
 
     public static async Task Render(Stream input, Func<byte[], Task> write,
-        Action<double> progress, CancellationToken cancellation, ExportSettings? settings = null) {
+        Action<double> progress, CancellationToken cancellation, ExportSettings? settings = null, Func<CancellationToken, Task>? cooperate = null) {
         settings ??= new(); settings.Validate();
+        cooperate ??= token => Task.Delay(1, token);
         CavernAmp.Bypass = true; // No native DLLs on the browser.
         using var reader = AudioReader.Open(input);
         if (reader is not EnhancedAC3Reader && reader is not AudioTrackReader)
@@ -56,7 +57,7 @@ public static class Converter {
         if (reader.SampleRate != SampleRate)
             throw new ConversionException("sampleRate");
         byte[] header = WaveHeader(settings.FramesFor(reader.Length), settings);
-        var exporter = new AudioExporter(reader.Length, settings, write);
+        var exporter = new AudioExporter(reader.Length, settings, write, cooperate: cooperate);
         var listener = new Listener(false) {
             SampleRate = SampleRate, UpdateRate = 64, AudioQuality = QualityModes.Perfect,
             Normalizer = 0, Volume = 1, LFESeparation = true, DirectLFE = true
@@ -85,7 +86,7 @@ public static class Converter {
                     await exporter.Append(samples, used, cancellation);
                     progress((double)rendered / reader.Length);
                     used = 0;
-                    await Task.Delay(1, cancellation); // Let the browser paint and receive Cancel.
+                    await cooperate(cancellation); // Worker yields use messages, not background-throttled timers.
                 }
             }
             await exporter.Finish(cancellation);

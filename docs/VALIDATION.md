@@ -91,3 +91,26 @@ node tests/zip-format.cjs
 ```
 
 La compilación quedó en el borrador. Esta validación no implica una publicación nueva en GitHub Pages.
+
+
+## Conversión en un Web Worker (8 de noviembre de 2026)
+
+- El motor se ejecuta en un worker de módulo dedicado, cargando el mismo paquete AOT con `dotnet.js` y los exports de `WorkerEngine`, sin ejecutar el punto de entrada de Blazor. La lectura de la entrada y la escritura secuencial del WAV ocurren dentro del worker. Los bloques PCM no cruzan el hilo de interfaz y los avisos de progreso no requieren confirmación de la página.
+- La cooperación del decodificador y del remuestreador usa `MessageChannel`, no `Task.Delay` en la ruta del worker. También se retiraron las dependencias de `requestAnimationFrame` para preparar una descarga y de `setTimeout` para avanzar el ZIP. Las pruebas nativas conservan su planificador predeterminado.
+- Prueba con Chrome en una pantalla Xorg virtual, usando CDP directamente. Se verificó `document.visibilityState === "hidden"` durante toda la conversión, sin la emulación de foco ni los indicadores de desactivación del throttling que Playwright aplica por defecto.
+- Con la compilación anterior, «Whiplash (English Version)» estaba aproximadamente al 6.5 % tras 70.4 s con la pestaña oculta; se detuvo esa observación sin terminar. Con el worker, la canción completa y el fragmento EC3 siguiente de la cola terminaron en 34.1 s, permaneciendo la pestaña oculta. Son observaciones locales, no una garantía de rendimiento o una medición portátil entre dispositivos.
+- La descarga de «Whiplash» a 48 kHz/float32 tiene 563,066,960 bytes y coincide byte por byte con el WAV anterior al cambio de ejecución. Pasaron las 64 comprobaciones nativas, las seis combinaciones de formato, las pruebas de ZIP y las regresiones de apariencia y descarga individual.
+- Cancelación real dentro del worker: se detiene un archivo EC3 largo ya iniciado, se borra su salida parcial y el siguiente queda pendiente. El reintento completa ambos. Un fallo simulado de `FileSystemSyncAccessHandle.write` se limita a ese archivo y permite seguir con la cola y reintentar.
+- Se probaron fallos al cargar el script del worker y `dotnet.js`: el error queda en el archivo, no muestra un falso fallo crítico de Blazor y un reintento inicia un worker nuevo conservando la fuente elegida. Los mensajes tardíos de una instancia terminada se ignoran.
+- No se han probado Safari/Firefox en segundo plano ni hardware móvil. Un Web Worker no impide la suspensión completa de la página, del navegador o del sistema operativo. Cerrar la pestaña termina el trabajo; no se añadió un servicio de conversión en servidor.
+
+Para repetir la observación con un Chrome gráfico y Node 22 o posterior:
+
+```sh
+# Con dist/wwwroot servido en 127.0.0.1:8080 y un DISPLAY gráfico disponible:
+DISPLAY=:88 node tests/browser-background.cjs http://127.0.0.1:8080/ /ruta/audio.m4a /tmp/spatial-batch-short.ec3
+# La prueba falla si no permanece realmente oculta o no termina en 180 s.
+node tests/browser-worker-recovery.cjs
+```
+
+El cambio queda en el borrador, sin publicación nueva en GitHub Pages.

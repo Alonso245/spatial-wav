@@ -44,8 +44,7 @@ const fs=require('node:fs');
   await page.waitForTimeout(300);await page.screenshot({path:'/workspace/spatial-batch-queued.png',fullPage:true});
   // Hold the third job before it starts writing; the first result must remain downloadable.
   await page.evaluate(()=>{
-   window.batchOriginalBegin=spatial.begin;window.batchStarts=[];window.batchOriginalWrite=spatial.write;
-   spatial.write=async bytes=>{if(bytes.length>80&&window.testHoldWrite&&!window.cancelWriteHeld){window.cancelWriteHeld=true;await new Promise(resolve=>window.releaseCancelledWrite=resolve);}if(bytes.length>80&&window.testQuota&&!window.quotaFailed){window.quotaFailed=true;throw new Error('Simulated storage quota failure');}return batchOriginalWrite(bytes);};
+   window.batchOriginalBegin=spatial.begin;window.batchStarts=[];
    spatial.begin=async id=>{batchStarts.push(id);if(batchStarts.length===3)await new Promise(resolve=>window.releaseThird=resolve);return batchOriginalBegin(id);};
   });
   await convert();
@@ -87,23 +86,31 @@ const fs=require('node:fs');
   }
   console.log('PASS: native multiple picker, real drops, append safety, duplicate filenames, isolated errors, independent downloads, retained formats, ES/EN, themes and mobile');
   await reset();assert.equal(await outputs(),0);
-  await input.setInputFiles([fullPayload,shortPayload]);await waitRows(2);await settings(32,48000);
-  await page.evaluate(()=>window.testHoldWrite=true);
-  await convert();await page.waitForFunction(()=>window.releaseCancelledWrite,{},{timeout:120000});
+  const audioWorker=page.workers().find(w=>w.url().includes('converter-worker.js'));
+  assert.ok(audioWorker,'Decoder lives in a real dedicated worker');
+  assert.equal(await audioWorker.evaluate(()=>typeof document),'undefined');
+  const longPayload=payload('long.ec3',Buffer.concat(Array(24).fill(full)));
+  await input.setInputFiles([longPayload,shortPayload]);await waitRows(2);await settings(32,48000);
+  await convert();await page.waitForFunction(()=>document.querySelector('progress')?.value>.03,{},{timeout:120000});
   await page.getByRole('button',{name:'Detener cola',exact:true}).click();
-  await page.evaluate(()=>window.releaseCancelledWrite());
   await page.waitForFunction(()=>document.querySelector('.file-queue>li')?.dataset.state==='cancelled');
   assert.equal(await rows.nth(1).getAttribute('data-state'),'pending');assert.equal(await outputs(),0);
-  await page.evaluate(()=>{window.testHoldWrite=false;window.testQuota=false;});
   await convert();await page.waitForFunction(()=>document.querySelectorAll('.file-queue>li[data-state=ready]').length===2,{},{timeout:180000});
   console.log('PASS: stop queue removes partial output, leaves later files pending, then resumes successfully');
   await reset();await input.setInputFiles([fullPayload,shortPayload]);await waitRows(2);
-  await page.evaluate(()=>{window.quotaFailed=false;window.testQuota=true;});
+  await audioWorker.evaluate(()=>{
+   const write=FileSystemSyncAccessHandle.prototype.write;
+   let fail=true;
+   FileSystemSyncAccessHandle.prototype.write=function(bytes,...args){
+    if(fail&&bytes.byteLength>80){fail=false;throw new DOMException('Simulated storage quota failure','QuotaExceededError');}
+    return write.call(this,bytes,...args);
+   };
+  });
   await convert();await page.waitForFunction(()=>document.querySelectorAll('.file-queue>li[data-state=ready]').length===1,{},{timeout:180000});
   await page.getByRole('status').filter({hasText:'Cola terminada'}).waitFor();
   assert.equal(await rows.nth(0).getAttribute('data-state'),'failed');assert.match(await rows.nth(0).innerText(),/salida local/);
   assert.equal(await outputs(),1);
-  await page.evaluate(()=>{window.testHoldWrite=false;window.testQuota=false;});await convert();
+  await convert();
   await page.waitForFunction(()=>document.querySelectorAll('.file-queue>li[data-state=ready]').length===2,{},{timeout:180000});
   assert.equal(await outputs(),2);
   console.log('PASS: storage error affects only one job, cleanup and retry retain the other completed output');

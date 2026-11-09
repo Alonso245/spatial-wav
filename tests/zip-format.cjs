@@ -3,6 +3,7 @@ const fs=require('node:fs');
 const assert=require('node:assert/strict');
 const {execFileSync}=require('node:child_process');
 global.window=globalThis;
+require('../src/AtmosWeb/wwwroot/cooperate.js');
 require('../src/AtmosWeb/wwwroot/zip.js');
 (async()=>{
  const chunks=[];

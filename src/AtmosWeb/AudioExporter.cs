@@ -7,6 +7,7 @@ public sealed class AudioExporter {
     const int Channels = Converter.Channels, Half = 48, Taps = Half * 2, Capacity = 32768;
     readonly ExportSettings settings;
     readonly Func<byte[], Task> write;
+    readonly Func<CancellationToken, Task> cooperate;
     readonly long sourceFrames, targetFrames;
     readonly float[]? ring;
     readonly double[][]? coefficients;
@@ -16,8 +17,9 @@ public sealed class AudioExporter {
     int used;
     uint random;
 
-    public AudioExporter(long sourceFrames, ExportSettings settings, Func<byte[], Task> write, uint? seed = null) {
+    public AudioExporter(long sourceFrames, ExportSettings settings, Func<byte[], Task> write, uint? seed = null, Func<CancellationToken, Task>? cooperate = null) {
         settings.Validate();
+        this.cooperate = cooperate ?? (token => Task.Delay(1, token));
         this.settings = settings; this.write = write; this.sourceFrames = sourceFrames;
         targetFrames = settings.FramesFor(sourceFrames);
         random = seed ?? (uint)Random.Shared.Next(1, int.MaxValue);
@@ -84,7 +86,7 @@ public sealed class AudioExporter {
                 Encode((float)sum);
             }
             emitted++;
-            if (used == bytes.Length) { await Flush(); await Task.Delay(1, cancellation); }
+            if (used == bytes.Length) { await Flush(); await cooperate(cancellation); }
         }
     }
 

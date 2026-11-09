@@ -1,5 +1,6 @@
 (() => {
-  let root, activeId, picker, archive, archiveCancelled = false;
+  let root, activeId, picker, archive, archiveCancelled = false, converter;
+  const conversions = new Map();
   const outputs = new Map(), files = new Map(), urls = new Map();
   const prefix = 'spatial-output-';
 
@@ -77,6 +78,34 @@
     if (zone) void addFiles(event.dataTransfer.files);
   });
   document.addEventListener('dragend', () => document.querySelectorAll('[data-dragging]').forEach(el => delete el.dataset.dragging));
+  function worker() {
+    if (!converter) {
+      const instance = new Worker(new URL('converter-worker.js?v=20261109', document.baseURI), { type: 'module' });
+      converter = instance;
+      instance.onmessage = ({ data }) => {
+        if (converter !== instance) return;
+        const pending = conversions.get(data.id);
+        if (!pending) return;
+        if (data.type === 'progress') {
+          // Never await rendering or an acknowledgement from the UI thread.
+          void picker.invokeMethodAsync('ConversionProgress', data.id, data.stage, data.fraction).catch(error => console.log(error));
+        } else if (data.type === 'result') {
+          conversions.delete(data.id);
+          if (data.code === 'workerError') { converter?.terminate(); converter = null; }
+          pending(data.code);
+        }
+      };
+      instance.onerror = error => {
+        error.preventDefault();
+        if (converter !== instance) return;
+        console.log(error.message);
+        converter?.terminate(); converter = null;
+        for (const resolve of conversions.values()) resolve('workerError');
+        conversions.clear();
+      };
+    }
+    return converter;
+  }
   window.spatial = {
     attachPicker(bridge) { picker = bridge; },
     pickFiles() { if (input() && !input().disabled) input().click(); },
@@ -88,7 +117,7 @@
     releaseFile(id) { files.delete(id); },
     clearFiles() { files.clear(); if (input()) input().value = ''; },
     async supported() {
-      if (!isSecureContext || !navigator.storage?.getDirectory) return false;
+      if (!isSecureContext || !navigator.storage?.getDirectory || !window.Worker || !window.MessageChannel) return false;
       try {
         root = await navigator.storage.getDirectory();
         const test = 'spatial-test-' + crypto.randomUUID();
@@ -103,29 +132,38 @@
       await discard(id);
       if (activeId !== undefined) throw new Error('A conversion is already in progress.');
       root = await navigator.storage.getDirectory();
-      const output = { entry: prefix + crypto.randomUUID() };
+      const output = { entry: prefix + crypto.randomUUID(), working: true };
       outputs.set(id, output); activeId = id;
       output.handle = await root.getFileHandle(output.entry, { create: true });
-      output.writable = await output.handle.createWritable();
+
     },
-    async write(bytes) {
-      const output = outputs.get(activeId);
-      if (!output?.writable) throw new Error('No hay archivo de salida abierto.');
-      try { await output.writable.write(bytes); }
-      catch (error) { throw new Error('No se pudo guardar la salida local. Comprueba el espacio disponible: ' + error.message); }
+    async convert(id, bitDepth, sampleRate) {
+      const output = outputs.get(id), file = files.get(id);
+      if (!output || !file) return 'sourceError';
+      let code;
+      try {
+        code = await new Promise(resolve => {
+          conversions.set(id, resolve);
+          worker().postMessage({ type: 'convert', id, entry: output.entry, file, bitDepth, sampleRate });
+        });
+      } catch (error) { console.log(error); conversions.delete(id); code = 'workerError'; }
+      output.working = false;
+      return code;
     },
-    async finish() {
+    cancelConversion() { if (activeId) converter?.postMessage({ type: 'cancel', id: activeId }); },
+    cooperate() { return spatialCooperate(); },
+    finish() {
       const output = outputs.get(activeId);
-      if (!output?.writable) throw new Error('No hay archivo de salida abierto.');
-      await output.writable.close(); output.writable = null; activeId = undefined;
+      if (!output || output.working) throw new Error('The output is not ready.');
+      activeId = undefined;
     },
     discard,
     async download(name, id) {
       // The fallback preserves the single-file helper's existing call shape.
       if (id == null && outputs.size === 1) id = outputs.keys().next().value;
       const output = outputs.get(id);
-      if (!output?.handle || output.writable) throw new Error('La salida no está terminada.');
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      if (!output?.handle || output.writable || output.working) throw new Error('La salida no está terminada.');
+      await spatialCooperate();
       download(await output.handle.getFile(), name, id);
     },
     layout(name, channels, sampleRate = 48000, bitDepth = 32, id = 'default') {
@@ -145,7 +183,7 @@
         const entries = [];
         for (let index = 0; index < jobs.length; index++) {
           const job = jobs[index], output = outputs.get(job.id);
-          if (!output?.handle || output.writable) throw new Error('A WAV is not ready.');
+          if (!output?.handle || output.writable || output.working) throw new Error('A WAV is not ready.');
           // Prefixes distinguish identical names, including on case-insensitive disks.
           const safe = job.name.normalize('NFC').replace(/[\\/:*?"<>|\x00-\x1f\x7f]/g, '_').replace(/^\.+/, '_');
           const name = String(index + 1).padStart(2, '0') + '_' + safe;
@@ -173,5 +211,5 @@
       }
     }
   };
-  addEventListener('pagehide', () => { files.clear(); void discard(); });
+  addEventListener('pagehide', () => { converter?.terminate(); converter = null; files.clear(); void discard(); });
 })();

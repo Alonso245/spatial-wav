@@ -102,6 +102,7 @@
     string Format(ExportSettings settings) => $"{settings.SampleRate / 1000d:0.###} kHz · {settings.BitDepth}-bit {(settings.BitDepth == 32 ? "float" : "PCM")}";
     string language = "es", messageKey = "";
     CancellationTokenSource? cancellation;
+    string? activeJobId;
 
     string T(string es, string en) => language == "en" ? en : es;
     string Message => messageKey == "batchDone" ? T("Cola terminada. Descarga los archivos listos; puedes volver a intentar los que fallaron.", "Queue finished. Download ready files; you can retry any that failed.") : ErrorMessage(messageKey);
@@ -111,6 +112,9 @@
         "extension" => T("Selecciona un archivo EC3, EAC3, M4A o MP4.", "Choose an EC3, EAC3, M4A or MP4 file."),
         "size" => T("El límite de esta primera versión es 128 MiB.", "The input limit for this first version is 128 MiB."),
         "selected" => T("Se verificará el contenido JOC al convertir; la extensión no confirma el formato.", "JOC content will be checked during conversion; a file extension does not confirm the format."),
+        "startingWorker" => T("Preparando el motor de conversión…", "Preparing the conversion engine…"),
+        "workerError" => T("No se pudo iniciar el motor en segundo plano. Prueba una versión actual de Chrome, Edge, Firefox o Safari y vuelve a intentarlo.", "The background engine could not start. Try a current version of Chrome, Edge, Firefox or Safari and retry."),
+        "sourceError" => T("No se pudo leer el archivo local. Quita esta entrada y selecciónalo de nuevo.", "The local file could not be read. Remove this entry and select it again."),
         "reading" => T("Leyendo el archivo local…", "Reading your local file…"),
         "rendering" => T("Decodificando objetos y renderizando 16 altavoces…", "Decoding objects and rendering 16 speakers…"),
         "done" => T("Conversión completada.", "Conversion complete."),
@@ -200,20 +204,15 @@
         try {
             foreach (var job in pending) {
                 if (cancellation.IsCancellationRequested) break;
-                job.Error = ""; job.State = JobState.Reading; fraction = 0; messageKey = "reading"; StateHasChanged();
+                activeJobId = job.Id; job.Error = ""; job.State = JobState.Reading; fraction = 0; messageKey = "reading"; StateHasChanged();
                 try {
                     await JS.InvokeVoidAsync("spatial.begin", job.Id);
-                    // Only one source is loaded into WASM memory at a time. JS keeps
-                    // stable File references across picker additions and dropped files.
-                    using (var input = new MemoryStream()) {
-                        await using var reference = await JS.InvokeAsync<IJSStreamReference>("spatial.openFile", job.Id);
-                        await using (var source = await reference.OpenReadStreamAsync(MaxInput, cancellation.Token))
-                            await source.CopyToAsync(input, cancellation.Token);
-                        input.Position = 0;
-                        job.State = JobState.Rendering; messageKey = "rendering"; StateHasChanged();
-                        await Converter.Render(input, async bytes => await JS.InvokeVoidAsync("spatial.write", bytes),
-                            p => { fraction = p; StateHasChanged(); }, cancellation.Token, export);
-                    }
+                    cancellation.Token.ThrowIfCancellationRequested();
+                    // The File is cloned to a dedicated worker. Audio and OPFS writes
+                    // never cross or await the main/UI thread.
+                    string code = await JS.InvokeAsync<string>("spatial.convert", job.Id, export.BitDepth, export.SampleRate);
+                    if (code == "cancelled") throw new OperationCanceledException(cancellation.Token);
+                    if (code != "") throw new ConversionException(code);
                     cancellation.Token.ThrowIfCancellationRequested();
                     finalizing = true; job.State = JobState.Finalizing; messageKey = "finalizing"; StateHasChanged();
                     await JS.InvokeVoidAsync("spatial.finish");
@@ -229,15 +228,27 @@
                     job.Error = e is ConversionException conversion ? conversion.Code : e is JSException ? "storageError" : "decodeError";
                     job.State = JobState.Failed; messageKey = job.Error;
                 } finally { finalizing = false; StateHasChanged(); }
-                await Task.Delay(1); // Allow the next file's status to paint.
+                await JS.InvokeVoidAsync("spatial.cooperate");
             }
             if (pending.Length > 1 && !cancellation.IsCancellationRequested) messageKey = "batchDone";
         } finally {
-            busy = false; cancellation.Dispose(); cancellation = null;
+            busy = false; activeJobId = null; cancellation.Dispose(); cancellation = null;
         }
     }
 
-    void Cancel() { cancellation?.Cancel(); }
+    [JSInvokable]
+    public void ConversionProgress(string id, string stage, double value) {
+        if (!busy || activeJobId != id || cancellation?.IsCancellationRequested == true) return;
+        var job = jobs.FirstOrDefault(x => x.Id == id);
+        if (job is null || job.State is JobState.Ready or JobState.Failed or JobState.Cancelled) return;
+        job.State = stage == "finalizing" ? JobState.Finalizing : stage == "rendering" ? JobState.Rendering : JobState.Reading;
+        finalizing = stage == "finalizing"; fraction = Math.Clamp(value, 0, 1); messageKey = stage;
+        StateHasChanged();
+    }
+    async Task Cancel() {
+        cancellation?.Cancel();
+        await JS.InvokeVoidAsync("spatial.cancelConversion");
+    }
     async Task NewConversion() {
         if (QueueLocked) return;
         editingQueue = true; StateHasChanged();
